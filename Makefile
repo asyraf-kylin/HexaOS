@@ -17,8 +17,11 @@ C_SRCS  := $(wildcard arch/*.c) $(wildcard drivers/*.c) $(wildcard kernel/src/*.
 A_SRCS  := $(wildcard boot/*.asm) $(wildcard arch/*.asm)
 OBJS    := $(patsubst %.asm,build/%.o,$(A_SRCS)) $(patsubst %.c,build/%.o,$(C_SRCS))
 KERNEL  := build/minios.elf
+ISO_DIR       := build/iso
+ISO           := build/hexa.iso
+GRUB_MKRESCUE ?= grub-mkrescue
 
-.PHONY: all run run-nox clean
+.PHONY: all run run-nox iso run-iso clean
 
 all: $(KERNEL)
 
@@ -41,6 +44,20 @@ run: $(KERNEL)
 # Tanpa jendela: semua lewat terminal (keluar: Ctrl-A lalu X)
 run-nox: $(KERNEL)
 > $(QEMU) -kernel $(KERNEL) -nographic -m 64M
+
+# ISO bootable: GRUB memuat kernel dari media (butuh grub, xorriso, mtools)
+iso: $(ISO)
+
+$(ISO): $(KERNEL) boot/grub/grub.cfg
+> @mkdir -p $(ISO_DIR)/boot/grub
+> cp $(KERNEL) $(ISO_DIR)/boot/minios.elf
+> cp boot/grub/grub.cfg $(ISO_DIR)/boot/grub/grub.cfg
+> $(GRUB_MKRESCUE) -o $@ $(ISO_DIR)
+> @echo "ISO OK -> $@"
+
+# Jalankan lewat GRUB (bukan opsi -kernel)
+run-iso: $(ISO)
+> $(QEMU) -cdrom $(ISO) -serial stdio -m 64M
 
 clean:
 > rm -rf build

@@ -1,8 +1,8 @@
 #include "kernel.h"
 #include "cli.h"
 
-#define BOOT_STEP_MS  350   /* jeda antar langkah boot */
-#define BOOT_BAR_MS   60    /* jeda tiap kotak progress bar */
+#define BOOT_STEP_MS  350   
+#define BOOT_BAR_MS   60    
 #define BOOT_BAR_LEN  24
 
 static void boot_progress(const char* label) {
@@ -18,13 +18,13 @@ static void boot_progress(const char* label) {
 void kernel_main(void) {
     vga_init();
     serial_init();
+    keyboard_init();
     print_logo();
 
     kprintf("[ OK ] VGA text mode 80x25\n");  kdelay_ms(BOOT_STEP_MS);
     kprintf("[ OK ] Serial COM1 115200\n");   kdelay_ms(BOOT_STEP_MS);
+    kprintf("[ OK ] Keyboard PS/2\n");  kdelay_ms(BOOT_STEP_MS);
 
-    /* Urutan init: memori dulu, scheduler terakhir.
-       Tiap modul mencetak status barisnya sendiri. */
     mem_init();    kdelay_ms(BOOT_STEP_MS);
     vfs_init();    kdelay_ms(BOOT_STEP_MS);
     sched_init();  kdelay_ms(BOOT_STEP_MS);
@@ -34,7 +34,6 @@ void kernel_main(void) {
     boot_progress("Memuat sistem");
     kdelay_ms(600);
 
-    /* Selesai boot: bersihkan layar, masuk ke CLI */
     vga_clear();
     vga_set_color(VGA_LIGHT_CYAN, VGA_BLACK);
     kprintf("%s v%s\n", OS_NAME, OS_VERSION);

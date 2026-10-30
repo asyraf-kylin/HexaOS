@@ -50,6 +50,12 @@ void serial_putc(char c);
 int  serial_ready(void);      /* 1 kalau ada karakter masuk */
 char serial_getc(void);       /* menunggu sampai ada karakter */
 
+/* ---- Keyboard PS/2 (drivers/keyboard.c) ---- */
+void keyboard_init(void);
+void keyboard_poll(void);     /* baca scancode yang menunggu ke antrean */
+int  keyboard_ready(void);    /* 1 kalau ada karakter siap diambil */
+char keyboard_getc(void);     /* menunggu sampai ada karakter */
+
 /* ---- Output/input umum (kernel/src/klib.c) ---- */
 void kputc(char c);           /* ke VGA + serial */
 void kputs(const char* s);    /* tanpa newline otomatis */

@@ -13,7 +13,8 @@ void kputs(const char* s) {
 
 char kgetc(void) {
     for (;;) {
-        if (serial_ready()) return serial_getc();
+        if (serial_ready())   return serial_getc();     /* terminal (serial) */
+        if (keyboard_ready()) return keyboard_getc();   /* keyboard PS/2 */
         __asm__ volatile("pause");
     }
 }
