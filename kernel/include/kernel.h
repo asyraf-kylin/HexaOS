@@ -32,6 +32,10 @@ static inline uint8_t inb(uint16_t port) {
     return r;
 }
 
+static inline void outw(uint16_t port, uint16_t val) {
+    __asm__ volatile("outw %0, %1" : : "a"(val), "Nd"(port));
+}
+
 /* ---- Arsitektur x86: GDT, IDT, interrupt (arch/) ---- */
 /* Susunan stack saat interrupt, harus cocok dengan arch/isr.asm */
 typedef struct {
@@ -84,6 +88,8 @@ void kprintf(const char* fmt, ...);   /* %s %c %d %u %x %p %%, lebar & 0 */
 char kgetc(void);             /* baca satu karakter (polling) */
 void kdelay_ms(uint32_t ms);  /* jeda (PIT kanal 2, tanpa interrupt) */
 void kpanic(const char* msg);
+void system_reboot(void);     /* restart (keyboard controller / triple fault) */
+void system_shutdown(void);   /* matikan VM (QEMU), halt kalau tidak berhasil */
 void print_logo(void);        /* kernel/src/logo.c */
 void print_authors(void);     /* unjuk author*/
 

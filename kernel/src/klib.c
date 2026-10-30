@@ -90,6 +90,33 @@ void kpanic(const char* msg) {
     for (;;) __asm__ volatile("cli; hlt");
 }
 
+/* ---------- reboot & shutdown ---------- */
+void system_reboot(void) {
+    interrupts_disable();
+
+    /* Cara 1: pulse reset lewat keyboard controller (port 0x64, perintah 0xFE) */
+    for (uint32_t t = 0; t < 100000u && (inb(0x64) & 0x02); t++) { }
+    outb(0x64, 0xFE);
+
+    /* Cara 2 (cadangan): IDT kosong + interrupt -> triple fault -> CPU reset */
+    struct { uint16_t limit; uint32_t base; } __attribute__((packed)) null_idt = {0, 0};
+    __asm__ volatile("lidt %0; int3" : : "m"(null_idt));
+
+    for (;;) __asm__ volatile("hlt");
+}
+
+void system_shutdown(void) {
+    interrupts_disable();
+
+    outw(0x604,  0x2000);   /* QEMU (ACPI PM1a) */
+    outw(0xB004, 0x2000);   /* QEMU lama / Bochs */
+    outw(0x4004, 0x3400);   /* VirtualBox */
+
+    /* Tidak mati (mis. hardware asli): berhenti di sini */
+    kputs("\nAman untuk dimatikan.\n");
+    for (;;) __asm__ volatile("hlt");
+}
+
 /* ---------- string & memori ---------- */
 size_t kstrlen(const char* s) {
     size_t n = 0;
