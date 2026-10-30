@@ -32,6 +32,27 @@ static inline uint8_t inb(uint16_t port) {
     return r;
 }
 
+/* ---- Arsitektur x86: GDT, IDT, interrupt (arch/) ---- */
+/* Susunan stack saat interrupt, harus cocok dengan arch/isr.asm */
+typedef struct {
+    uint32_t ds;
+    uint32_t edi, esi, ebp, esp, ebx, edx, ecx, eax;   /* urutan pusha */
+    uint32_t int_no, err_code;
+    uint32_t eip, cs, eflags, useresp, ss;             /* didorong oleh CPU */
+} registers_t;
+
+typedef void (*isr_handler_t)(registers_t* r);
+
+void gdt_init(void);
+void gdt_set_kernel_stack(uint32_t esp0);   /* esp0 untuk TSS (user -> kernel) */
+void idt_init(void);                        /* IDT + remap PIC, semua IRQ masih mask */
+void isr_register(int int_no, isr_handler_t h);   /* pasang handler vektor 0-255 */
+void irq_register(int irq, isr_handler_t h);      /* pasang handler IRQ 0-15 + unmask */
+void irq_unregister(int irq);
+
+static inline void interrupts_enable(void)  { __asm__ volatile("sti"); }
+static inline void interrupts_disable(void) { __asm__ volatile("cli"); }
+
 /* ---- VGA text mode (drivers/vga.c) ---- */
 enum vga_color {
     VGA_BLACK, VGA_BLUE, VGA_GREEN, VGA_CYAN, VGA_RED, VGA_MAGENTA,

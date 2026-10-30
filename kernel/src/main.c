@@ -18,17 +18,20 @@ static void boot_progress(const char* label) {
 void kernel_main(void) {
     vga_init();
     serial_init();
+    gdt_init();          // BARU
+    idt_init();          // BARU
     keyboard_init();
     print_logo();
 
     kprintf("[ OK ] VGA text mode 80x25\n");  kdelay_ms(BOOT_STEP_MS);
     kprintf("[ OK ] Serial COM1 115200\n");   kdelay_ms(BOOT_STEP_MS);
+    kprintf("[ OK ] GDT, IDT, PIC (arch)\n");  kdelay_ms(BOOT_STEP_MS); 
     kprintf("[ OK ] Keyboard PS/2\n");  kdelay_ms(BOOT_STEP_MS);
 
     mem_init();    kdelay_ms(BOOT_STEP_MS);
     vfs_init();    kdelay_ms(BOOT_STEP_MS);
     sched_init();  kdelay_ms(BOOT_STEP_MS);
-
+    interrupts_enable();
     cli_init();
     kprintf("[ OK ] CLI siap\n\n");
     boot_progress("Memuat sistem");

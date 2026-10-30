@@ -72,10 +72,12 @@ static void cmd_help(int argc, char** argv) {
 static void cmd_about(int argc, char** argv) { print_logo(); }
 static void cmd_clear(int argc, char** argv) { vga_clear(); }
 static void cmd_author(int argc, char** argv) { print_authors(); }
+static void cmd_int3(int argc, char** argv) { __asm__ volatile("int3"); }
 
 void cli_init(void) {
     cli_register("help",  "daftar perintah", cmd_help);
     cli_register("about", "info & logo OS",  cmd_about);
     cli_register("clear", "bersihkan layar", cmd_clear);
     cli_register("author", "daftar anggota tim", cmd_author);
+    cli_register("int3", "uji interrupt (breakpoint)", cmd_int3);
 }
