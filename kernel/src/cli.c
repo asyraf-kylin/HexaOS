@@ -47,7 +47,7 @@ void cli_run(void) {
     char* argv[CLI_MAX_ARGS];
 
     for (;;) {
-        kprintf("minios> ");
+        kprintf("agent> ");
         read_line(line, CLI_BUF_SIZE);
         int argc = parse(line, argv);
         if (argc == 0) continue;
@@ -71,9 +71,11 @@ static void cmd_help(int argc, char** argv) {
 }
 static void cmd_about(int argc, char** argv) { print_logo(); }
 static void cmd_clear(int argc, char** argv) { vga_clear(); }
+static void cmd_author(int argc, char** argv) { print_authors(); }
 
 void cli_init(void) {
     cli_register("help",  "daftar perintah", cmd_help);
     cli_register("about", "info & logo OS",  cmd_about);
     cli_register("clear", "bersihkan layar", cmd_clear);
+    cli_register("author", "daftar anggota tim", cmd_author);
 }
