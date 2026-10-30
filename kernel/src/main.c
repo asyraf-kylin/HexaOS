@@ -18,8 +18,8 @@ static void boot_progress(const char* label) {
 void kernel_main(void) {
     vga_init();
     serial_init();
-    gdt_init();          // BARU
-    idt_init();          // BARU
+    gdt_init();
+    idt_init();
     keyboard_init();
     print_logo();
 
@@ -33,7 +33,7 @@ void kernel_main(void) {
     sched_init();  kdelay_ms(BOOT_STEP_MS);
     interrupts_enable();
     cli_init();
-    kprintf("[ OK ] CLI siap\n\n");
+    kprintf("[ OK ] CLI Ready\n\n");
     boot_progress("Memuat sistem");
     kdelay_ms(600);
 
