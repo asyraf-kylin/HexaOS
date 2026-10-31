@@ -7,7 +7,7 @@
 #define TASK_STACK_SIZE 8192   /* stack kernel per thread (byte) */
 #define TASK_NAME_LEN   16
 #define TIMER_HZ        100    /* 1 tick = 10 ms */
-#define TASK_QUANTUM    2      /* kuantum Round Robin: 2 tick = 20 ms */
+#define TASK_QUANTUM    5     /* kuantum Round Robin: 5 tick = 50 ms */
 
 /* Siklus hidup thread: NEW -> READY <-> RUNNING <-> WAITING -> TERMINATED */
 typedef enum {
