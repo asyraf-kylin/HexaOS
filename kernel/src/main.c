@@ -23,18 +23,18 @@ void kernel_main(void) {
     keyboard_init();
     print_logo();
 
-    kprintf("[ OK ] VGA text mode 80x25\n");  kdelay_ms(BOOT_STEP_MS);
-    kprintf("[ OK ] Serial COM1 115200\n");   kdelay_ms(BOOT_STEP_MS);
-    kprintf("[ OK ] GDT, IDT, PIC (arch)\n");  kdelay_ms(BOOT_STEP_MS); 
-    kprintf("[ OK ] Keyboard PS/2\n");  kdelay_ms(BOOT_STEP_MS);
+    kprintf("[ OK ] VGA text mode initialized (80x25)\n");  kdelay_ms(BOOT_STEP_MS);
+    kprintf("[ OK ] Serial port COM1 initialized (115200 baud)\n");   kdelay_ms(BOOT_STEP_MS);
+    kprintf("[ OK ] Architecture setup complete (GDT, IDT, PIC)\n");  kdelay_ms(BOOT_STEP_MS); 
+    kprintf("[ OK ] Keyboard initialized (PS/2)\n");  kdelay_ms(BOOT_STEP_MS);
 
     mem_init();    kdelay_ms(BOOT_STEP_MS);
     vfs_init();    kdelay_ms(BOOT_STEP_MS);
     sched_init();  kdelay_ms(BOOT_STEP_MS);
     interrupts_enable();
     cli_init();
-    kprintf("[ OK ] CLI Ready\n\n");
-    boot_progress("Memuat sistem");
+    kprintf("[ OK ] Command-line interface ready\n\n");
+    boot_progress("Loading system");
     kdelay_ms(600);
 
     vga_clear();
@@ -43,6 +43,6 @@ void kernel_main(void) {
     vga_set_color(VGA_LIGHT_GREY, VGA_BLACK);
     print_authors();
     kputc('\n');
-    kprintf("Ketik 'help' untuk daftar perintah.\n\n");
+    kprintf("Type 'help' for a list of available commands.\n\n");
     cli_run();
 }

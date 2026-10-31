@@ -5,13 +5,13 @@
 #include "kernel.h"
 
 __attribute__((weak)) void mem_init(void) {
-    kprintf("[ -- ] memori    : belum diimplementasi (stub)\n");
+    kprintf("[ SKIP ] Memory manager not implemented (stub)\n");
 }
 
 __attribute__((weak)) void vfs_init(void) {
-    kprintf("[ -- ] vfs       : belum diimplementasi (stub)\n");
+    kprintf("[ SKIP ] Virtual file system not implemented (stub)\n");
 }
 
 __attribute__((weak)) void sched_init(void) {
-    kprintf("[ -- ] scheduler : belum diimplementasi (stub)\n");
+    kprintf("[ SKIP ] Scheduler not implemented (stub)\n");
 }
