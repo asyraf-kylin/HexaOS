@@ -102,8 +102,10 @@ void*  memmove(void* dst, const void* src, size_t n);
 int    memcmp(const void* a, const void* b, size_t n);
 
 /* ---- Init tiap modul, dipanggil dari main.c ---- */
-void mem_init(void);
-void vfs_init(void);
-void sched_init(void);
+void memory_init(void);   /* Anggota 4: memory.c */
+void vfs_init(void);      /* Anggota 4: vfs.c */
+void task_init(void);     /* Anggota 2: task.c */
+void sync_init(void);     /* Anggota 3: sync.c */
+void protect_init(void);  /* Anggota 3: protect.c */
 
 #endif

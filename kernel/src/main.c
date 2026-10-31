@@ -28,9 +28,12 @@ void kernel_main(void) {
     kprintf("[ OK ] Architecture setup complete (GDT, IDT, PIC)\n");  kdelay_ms(BOOT_STEP_MS); 
     kprintf("[ OK ] Keyboard initialized (PS/2)\n");  kdelay_ms(BOOT_STEP_MS);
 
-    mem_init();    kdelay_ms(BOOT_STEP_MS);
-    vfs_init();    kdelay_ms(BOOT_STEP_MS);
-    sched_init();  kdelay_ms(BOOT_STEP_MS);
+    memory_init();   kdelay_ms(BOOT_STEP_MS);
+    vfs_init();      kdelay_ms(BOOT_STEP_MS);
+    task_init();     kdelay_ms(BOOT_STEP_MS);
+    sync_init();     /* Anggota 3: mutex/semaphore + perintah demo */
+    protect_init();  /* Anggota 3: hak akses */
+    
     interrupts_enable();
     cli_init();
     kprintf("[ OK ] Command-line interface ready\n\n");

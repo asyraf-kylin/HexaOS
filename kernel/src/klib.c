@@ -3,8 +3,11 @@
 
 /* ---------- output / input ---------- */
 void kputc(char c) {
+    uint32_t flags;
+    __asm__ volatile("pushf; pop %0; cli" : "=r"(flags) : : "memory");
     vga_putc(c);
     serial_putc(c);
+    __asm__ volatile("push %0; popf" : : "r"(flags) : "memory", "cc");
 }
 
 void kputs(const char* s) {

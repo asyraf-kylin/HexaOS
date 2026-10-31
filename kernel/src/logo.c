@@ -25,7 +25,7 @@ void print_logo(void) {
     }
     vga_set_color(VGA_YELLOW, VGA_BLACK);
     kputc('\n');
-    kprintf("  %s v%s - Tugas Besar Sistem Operasi\n", OS_NAME, OS_VERSION);
+    kprintf("  %s v%s - Final Project of Operating Systems Course at ITK\n", OS_NAME, OS_VERSION);
     vga_set_color(VGA_LIGHT_GREY, VGA_BLACK);
     kputc('\n');
 }
