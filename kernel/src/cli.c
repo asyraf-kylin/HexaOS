@@ -91,3 +91,4 @@ void cli_init(void) {
     cli_register("reboot", "restart sistem", cmd_reboot);
     cli_register("shutdown", "matikan sistem", cmd_shutdown);
 }
+
