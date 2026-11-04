@@ -2,10 +2,9 @@
 #define KERNEL_H
 
 #include <stdint.h>
-#include <stdarg.h>
 
 /* ---- Info OS ---- */
-#define OS_NAME     "Hexa OS"
+#define OS_NAME     "HexaOS"
 #define OS_VERSION  "1.0"
 #define OS_AUTHOR   "Ghithrif Asyraf - 11251008, Ahmad Nur Farizi - 11251048, Remarsya Fredericha - 11251078, Yusuf Maulana - 11251084"
 
