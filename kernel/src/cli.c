@@ -5,13 +5,28 @@ static cli_cmd_t cmds[CLI_MAX_CMDS];
 static int cmd_count = 0;
 
 /* 1. Pendaftaran perintah (dipanggil modul lain) */
-int cli_register(const char* name, const char* help, cli_handler_t fn) {
+static int do_register(const char* name, const char* help, cli_handler_t fn, int core) {
     if (cmd_count >= CLI_MAX_CMDS) return -1;
     cmds[cmd_count].name = name;
     cmds[cmd_count].help = help;
     cmds[cmd_count].fn   = fn;
+    cmds[cmd_count].core = core;
     cmd_count++;
     return 0;
+}
+
+int cli_register(const char* name, const char* help, cli_handler_t fn) {
+    return do_register(name, help, fn, 0);
+}
+
+int cli_register_core(const char* name, const char* help, cli_handler_t fn) {
+    return do_register(name, help, fn, 1);
+}
+
+int cli_count(void) { return cmd_count; }
+
+const cli_cmd_t* cli_get(int i) {
+    return (i >= 0 && i < cmd_count) ? &cmds[i] : NULL;
 }
 
 /* 2. Baca satu baris dari keyboard/serial, dengan echo + editing */
@@ -181,30 +196,7 @@ void cli_run(void) {
     }
 }
 
-/* Perintah bawaan */
-static void cmd_help(int argc, char** argv) {
-    for (int i = 0; i < cmd_count; i++)
-        kprintf("  %s - %s\n", cmds[i].name, cmds[i].help);
-}
-static void cmd_about(int argc, char** argv) { print_logo_unicode(); }
-static void cmd_clear(int argc, char** argv) { vga_clear(); }
-static void cmd_author(int argc, char** argv) { print_authors(); }
-static void cmd_reboot(int argc, char** argv) {
-    kprintf("Rebooting...\n");
-    kdelay_ms(300);
-    system_reboot();
-}
-static void cmd_shutdown(int argc, char** argv) {
-    kprintf("Shutting down...\n");
-    kdelay_ms(300);
-    system_shutdown();
-}
-
 void cli_init(void) {
-    cli_register("help",  "display this help message", cmd_help);
-    cli_register("about", "display OS information and logo",  cmd_about);
-    cli_register("author", "display the list of contributors", cmd_author);
-    cli_register("clear", "clear the screen", cmd_clear);
-    cli_register("reboot", "reboot the system", cmd_reboot);
-    cli_register("shutdown", "shut down the system", cmd_shutdown);
+    cmd_info_init();
+    cmd_system_init();
 }

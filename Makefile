@@ -14,6 +14,7 @@ CFLAGS  := -m32 -march=i686 -ffreestanding -fno-pie -fno-stack-protector \
 LDFLAGS := -m elf_i386 -T boot/linker.ld -nostdlib -z noexecstack --build-id=none
 
 C_SRCS := $(wildcard kernel/src/*.c) $(wildcard kernel/logo/*.c) \
+          $(wildcard kernel/cmd/*.c) \
           $(wildcard arch/*.c) $(wildcard drivers/*.c)
 A_SRCS  := $(wildcard boot/*.asm) $(wildcard arch/*.asm)
 OBJS    := $(patsubst %.asm,build/%.o,$(A_SRCS)) $(patsubst %.c,build/%.o,$(C_SRCS))
