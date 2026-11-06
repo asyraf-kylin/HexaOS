@@ -249,12 +249,11 @@ static void reap_terminated(void) {
     irq_restore(f);
 }
 
-/* Ctrl+C saat demo: matikan thread demo, tampilkan statusnya */
+/* Ctrl+C saat demo*/
 static void demo_abort(task_t* a, task_t* b) {
     task_kill(a);
     task_kill(b);
-    kputs("\n^C demo dibatalkan, thread dihentikan:\n");
-    task_dump();
+    kputs("\n^C");
 }
 
 static void cmd_demo_thread(int argc, char** argv) {
