@@ -186,7 +186,7 @@ static void cmd_help(int argc, char** argv) {
     for (int i = 0; i < cmd_count; i++)
         kprintf("  %s - %s\n", cmds[i].name, cmds[i].help);
 }
-static void cmd_about(int argc, char** argv) { print_logo(); }
+static void cmd_about(int argc, char** argv) { print_logo_unicode(); }
 static void cmd_clear(int argc, char** argv) { vga_clear(); }
 static void cmd_author(int argc, char** argv) { print_authors(); }
 static void cmd_reboot(int argc, char** argv) {

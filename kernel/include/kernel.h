@@ -114,7 +114,8 @@ void kinterrupt_clear(void);  /* hapus flag + buang input yang menunggu */
 void kpanic(const char* msg);
 void system_reboot(void);     /* restart (keyboard controller / triple fault) */
 void system_shutdown(void);   /* matikan VM (QEMU), halt kalau tidak berhasil */
-void print_logo(void);        /* kernel/src/logo.c */
+void print_logo_ascii(void);        /* kernel/src/logo.c */
+void print_logo_unicode(void);     /* kernel/src/logo_unicode.c */
 void print_authors(void);     /* unjuk author*/
 
 /* ---- String & memori dasar (tidak ada libc di kernel) ---- */

@@ -21,7 +21,7 @@ void kernel_main(void) {
     gdt_init();
     idt_init();
     keyboard_init();
-    print_logo();
+    print_logo_ascii();
 
     kprintf("[ OK ] VGA text mode initialized (80x25)\n");  kdelay_ms(BOOT_STEP_MS);
     kprintf("[ OK ] Serial port COM1 initialized (115200 baud)\n");   kdelay_ms(BOOT_STEP_MS);
@@ -41,7 +41,7 @@ void kernel_main(void) {
     kdelay_ms(600);
 
     vga_clear();
-    print_logo();
+    print_logo_unicode();
     vga_set_color(VGA_LIGHT_GREY, VGA_BLACK);
     print_authors();
     kputc('\n');
