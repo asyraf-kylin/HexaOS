@@ -46,7 +46,7 @@ static void render(void) {
     if (view) {                              /* penanda di pojok kanan atas */
         char tag[24];
         int n = 0;
-        const char* a = " RIWAYAT -";
+        const char* a = " SCROLL -";
         while (*a) tag[n++] = *a++;
         char d[8]; int dn = 0; int v = view;
         while (v) { d[dn++] = (char)('0' + v % 10); v /= 10; }
