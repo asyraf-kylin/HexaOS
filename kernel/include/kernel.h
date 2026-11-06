@@ -6,7 +6,7 @@
 
 /* ---- Info OS ---- */
 #define OS_NAME     "HexaOS"
-#define OS_VERSION  "1.0b"
+#define OS_VERSION  "2.11FX"
 #define OS_AUTHOR   "Ghithrif Asyraf - 11251008, Ahmad Nur Farizi - 11251048, Remarsya Fredericha - 11251078, Yusuf Maulana - 11251084"
 
 /* ---- Tipe dasar ---- */
@@ -114,8 +114,8 @@ void kinterrupt_clear(void);  /* hapus flag + buang input yang menunggu */
 void kpanic(const char* msg);
 void system_reboot(void);     /* restart (keyboard controller / triple fault) */
 void system_shutdown(void);   /* matikan VM (QEMU), halt kalau tidak berhasil */
-void print_logo_ascii(void);        /* kernel/src/logo.c */
-void print_logo_unicode(void);     /* kernel/src/logo_unicode.c */
+void print_logo_ascii(void);  /* kernel/src/logo.c */
+void print_logo_unicode(void);/* kernel/src/logo_unicode.c */
 void print_authors(void);     /* unjuk author*/
 
 /* ---- String & memori dasar (tidak ada libc di kernel) ---- */

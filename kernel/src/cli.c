@@ -177,7 +177,7 @@ void cli_run(void) {
                 break;
             }
         }
-        if (!found) kprintf("perintah tidak dikenal: %s\n", argv[0]);
+        if (!found) kprintf("unknown command: %s\n", argv[0]);
     }
 }
 
@@ -201,10 +201,10 @@ static void cmd_shutdown(int argc, char** argv) {
 }
 
 void cli_init(void) {
-    cli_register("help",  "daftar perintah", cmd_help);
-    cli_register("about", "info & logo OS",  cmd_about);
-    cli_register("clear", "bersihkan layar", cmd_clear);
-    cli_register("author", "daftar anggota tim", cmd_author);
-    cli_register("reboot", "restart sistem", cmd_reboot);
-    cli_register("shutdown", "matikan sistem", cmd_shutdown);
+    cli_register("help",  "display this help message", cmd_help);
+    cli_register("about", "display OS information and logo",  cmd_about);
+    cli_register("author", "display the list of contributors", cmd_author);
+    cli_register("clear", "clear the screen", cmd_clear);
+    cli_register("reboot", "reboot the system", cmd_reboot);
+    cli_register("shutdown", "shut down the system", cmd_shutdown);
 }

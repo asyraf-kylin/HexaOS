@@ -334,9 +334,9 @@ void task_init(void) {
 
     timer_init(TIMER_HZ, task_tick);
 
-    cli_register("threads",      "daftar thread & statusnya",     cmd_threads);
-    cli_register("demo-thread",  "demo siklus status thread",     cmd_demo_thread);
-    cli_register("demo-preempt", "demo preemption (tanpa yield)", cmd_demo_preempt);
+    cli_register("threads",      "list all threads",     cmd_threads);
+    cli_register("demo-thread",  "demo thread status cycles",     cmd_demo_thread);
+    cli_register("demo-preempt", "demo preemption (without yield)", cmd_demo_preempt);
 
     kprintf("[ OK ] Scheduler Round Robin, kuantum %d ms\n", TASK_QUANTUM * 1000 / TIMER_HZ);
 }

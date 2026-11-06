@@ -167,7 +167,7 @@ void system_shutdown(void) {
     outw(0x4004, 0x3400);   /* VirtualBox */
 
     /* Tidak mati (mis. hardware asli): berhenti di sini */
-    kputs("\nAman untuk dimatikan.\n");
+    kputs("\nSafe to shut down.\n");
     for (;;) __asm__ volatile("hlt");
 }
 
@@ -187,7 +187,7 @@ int kstrcmp(const char* a, const char* b) {
    Satu baris penuh lebih dari 80 kolom, jadi tidak muat di layar VGA. */
 void print_authors(void) {
     const char* p = OS_AUTHOR;
-    kputs("Dibuat oleh:\n  * ");
+    kputs("Developed by:\n  * ");
     while (*p) {
         if (p[0] == ',' && p[1] == ' ') { kputs("\n  * "); p += 2; }
         else kputc(*p++);
