@@ -41,8 +41,7 @@ void kernel_main(void) {
     kdelay_ms(600);
 
     vga_clear();
-    vga_set_color(VGA_LIGHT_CYAN, VGA_BLACK);
-    kprintf("%s v%s\n", OS_NAME, OS_VERSION);
+    print_logo();
     vga_set_color(VGA_LIGHT_GREY, VGA_BLACK);
     print_authors();
     kputc('\n');

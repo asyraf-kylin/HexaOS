@@ -161,7 +161,7 @@ void cli_run(void) {
     char* argv[CLI_MAX_ARGS];
 
     for (;;) {
-        kprintf("agent> ");
+        kprintf("change with your name or alias at clic.c line 164> "); /* user */
         read_line(line, CLI_BUF_SIZE);
         hist_add(line);                   /* simpan dulu, sebelum parse merusak isi line */
         int argc = parse(line, argv);
