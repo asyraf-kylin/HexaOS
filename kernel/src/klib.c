@@ -14,12 +14,63 @@ void kputs(const char* s) {
     while (*s) kputc(*s++);
 }
 
+static int serial_wait(void) {
+    for (uint32_t i = 0; i < 200000 && !serial_ready(); i++) { }
+    return serial_ready();
+}
+
+/* Panah terminal = ESC [ A (atas) / ESC [ B (bawah). Return 0 kalau escape tak dipakai. */
+static char serial_key(void) {
+    char c = serial_getc();
+    if (c == 0x03) kinterrupt_raise();
+    if (c != 0x1B) return c;
+    if (!serial_wait()) return c;
+    char c2 = serial_getc();
+    if (c2 != '[' && c2 != 'O') return 0;
+    if (!serial_wait()) return 0;
+    char c3 = serial_getc();
+    while ((c3 >= '0' && c3 <= '9') || c3 == ';') {      /* mis. ESC [ 3 ~ (Delete) */
+        if (!serial_wait()) return 0;
+        c3 = serial_getc();
+    }
+    if (c3 == 'A') return KEY_UP;
+    if (c3 == 'B') return KEY_DOWN;
+    return 0;
+}
+
 char kgetc(void) {
     for (;;) {
-        if (serial_ready())   return serial_getc();     /* terminal (serial) */
-        if (keyboard_ready()) return keyboard_getc();   /* keyboard PS/2 */
+        if (serial_ready()) {
+            char c = serial_key();
+            if (c) return c;
+            continue;
+        }
+        if (keyboard_ready()) return keyboard_getc();
         __asm__ volatile("pause");
     }
+}
+
+/* ---------- Ctrl+C ----------
+   Di prompt, Ctrl+C datang lewat kgetc() sebagai 0x03. Saat perintah berjalan,
+   perintah itu sendiri memeriksa kinterrupted() di dalam loop-nya. */
+static volatile int interrupt_flag = 0;
+
+void kinterrupt_raise(void) { interrupt_flag = 1; }
+
+int kinterrupted(void) {
+    keyboard_poll();
+    while (serial_ready()) {
+        if (serial_getc() == 0x03) interrupt_flag = 1;   /* ketikan lain dibuang */
+    }
+    int r = interrupt_flag;
+    interrupt_flag = 0;
+    return r;
+}
+
+void kinterrupt_clear(void) {
+    interrupt_flag = 0;
+    keyboard_flush();
+    while (serial_ready()) serial_getc();
 }
 
 void kdelay_ms(uint32_t ms) {

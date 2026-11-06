@@ -68,6 +68,8 @@ void vga_init(void);
 void vga_clear(void);
 void vga_putc(char c);
 void vga_set_color(uint8_t fg, uint8_t bg);
+void vga_scroll_view(int delta);  /* gulir riwayat: >0 ke atas, <0 ke bawah */
+void vga_scroll_reset(void);      /* kembali ke layar live */
 
 /* ---- Serial COM1 (drivers/serial.c) ---- */
 void serial_init(void);
@@ -77,6 +79,22 @@ char serial_getc(void);       /* menunggu sampai ada karakter */
 
 /* ---- Keyboard PS/2 (drivers/keyboard.c) ---- */
 void keyboard_init(void);
+
+/* ---- Tombol khusus: dikembalikan kgetc() sebagai karakter kontrol ---- */
+#define KEY_CTRL_C  0x03   /* Ctrl+C */
+#define KEY_UP      0x1E   /* panah atas */
+#define KEY_DOWN    0x1F   /* panah bawah */
+#define KEY_LEFT    0x11   /* panah kiri */
+#define KEY_RIGHT   0x12   /* panah kanan */
+#define KEY_HOME    0x13   /* Home */
+#define KEY_DELETE  0x14   /* Delete */
+
+void keyboard_init(void);
+void keyboard_flush(void);    /* buang semua karakter yang menunggu */
+
+/* ---- Mouse PS/2, hanya roda scroll (drivers/mouse.c) ---- */
+void mouse_init(void);        /* dipanggil dari keyboard_init() */
+void mouse_feed(uint8_t b);   /* dipanggil keyboard_poll() untuk byte dari mouse */
 void keyboard_poll(void);     /* baca scancode yang menunggu ke antrean */
 int  keyboard_ready(void);    /* 1 kalau ada karakter siap diambil */
 char keyboard_getc(void);     /* menunggu sampai ada karakter */
@@ -87,6 +105,12 @@ void kputs(const char* s);    /* tanpa newline otomatis */
 void kprintf(const char* fmt, ...);   /* %s %c %d %u %x %p %%, lebar & 0 */
 char kgetc(void);             /* baca satu karakter (polling) */
 void kdelay_ms(uint32_t ms);  /* jeda (PIT kanal 2, tanpa interrupt) */
+
+/* Ctrl+C: perintah yang berjalan lama cek kinterrupted() di dalam loop-nya */
+int  kinterrupted(void);      /* 1 kalau Ctrl+C ditekan (flag langsung dihapus) */
+void kinterrupt_raise(void);  /* dipanggil driver saat Ctrl+C terdeteksi */
+void kinterrupt_clear(void);  /* hapus flag + buang input yang menunggu */
+
 void kpanic(const char* msg);
 void system_reboot(void);     /* restart (keyboard controller / triple fault) */
 void system_shutdown(void);   /* matikan VM (QEMU), halt kalau tidak berhasil */

@@ -24,6 +24,7 @@ static const char map_shift[] =
     "ZXCVBNM<>?" "\0" "*" "\0" " ";
 
 static int shift_down = 0;
+static int ctrl_down  = 0;
 static int caps_on    = 0;
 static int extended   = 0;   /* byte sebelumnya 0xE0 (tombol extended) */
 
@@ -38,14 +39,25 @@ static char kbd_decode(uint8_t sc) {
     int release = sc & 0x80;
     sc &= 0x7F;
 
-    if (extended) {                       /* tombol extended: abaikan, kecuali 2 ini */
+        if (extended) {                       /* tombol extended (diawali 0xE0) */
         extended = 0;
+        if (sc == 0x1D) { ctrl_down = !release; return 0; }   /* Ctrl kanan */
         if (release) return 0;
+        if (sc == 0x48) return KEY_UP;    /* panah atas */
+        if (sc == 0x50) return KEY_DOWN;  /* panah bawah */
+        if (sc == 0x4B) return KEY_LEFT;    /* panah kiri */
+        if (sc == 0x4D) return KEY_RIGHT;   /* panah kanan */
+        if (sc == 0x47) return KEY_HOME;    /* Home */
+        if (sc == 0x53) return KEY_DELETE;  /* Delete */    
+        if (sc == 0x49) { vga_scroll_view(12);  return 0; }   /* PageUp: gulir riwayat */
+        if (sc == 0x51) { vga_scroll_view(-12); return 0; }   /* PageDown */
+        if (sc == 0x4F) { vga_scroll_reset();   return 0; }   /* End: kembali ke layar live */
         if (sc == 0x1C) return '\n';      /* Enter di numpad */
         if (sc == 0x35) return '/';       /* '/' di numpad */
-        return 0;                         /* panah, Home, Delete, dst. */
+        return 0;
     }
 
+    if (sc == 0x1D) { ctrl_down = !release; return 0; }       /* Ctrl kiri */
     if (sc == 0x2A || sc == 0x36) { shift_down = !release; return 0; }
     if (release) return 0;
     if (sc == 0x3A) { caps_on = !caps_on; return 0; }
@@ -58,6 +70,11 @@ static char kbd_decode(uint8_t sc) {
         c = (shift_down ^ caps_on) ? (char)(base - 'a' + 'A') : base;
     else
         c = shift_down ? map_shift[sc] : base;
+
+    if (ctrl_down) {                      /* kombinasi Ctrl+huruf */
+        if (c == 'c' || c == 'C') { kinterrupt_raise(); return KEY_CTRL_C; }
+        return 0;                         /* Ctrl+huruf lain: abaikan */
+    }
 
     if (c == '\t') c = ' ';               /* Tab dijadikan spasi */
     return c;
@@ -75,7 +92,7 @@ void keyboard_poll(void) {
     while (inb(KBD_STATUS) & KBD_OBF) {
         int from_mouse = inb(KBD_STATUS) & KBD_AUX;
         uint8_t sc = inb(KBD_DATA);
-        if (from_mouse) continue;
+        if (from_mouse) { mouse_feed(sc); continue; }
         char c = kbd_decode(sc);
         if (c) buf_push(c);
     }
@@ -83,7 +100,13 @@ void keyboard_poll(void) {
 
 void keyboard_init(void) {
     while (inb(KBD_STATUS) & KBD_OBF) inb(KBD_DATA);   /* kosongkan sisa byte boot */
-    shift_down = caps_on = extended = 0;
+    shift_down = ctrl_down = caps_on = extended = 0;
+    head = tail = 0;
+    mouse_init();                                      /* roda mouse untuk scroll riwayat */
+}
+
+void keyboard_flush(void) {
+    keyboard_poll();
     head = tail = 0;
 }
 
