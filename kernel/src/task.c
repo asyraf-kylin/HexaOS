@@ -12,7 +12,6 @@ static task_t   tasks[TASK_MAX];
 static uint8_t  stacks[TASK_MAX][TASK_STACK_SIZE] __attribute__((aligned(16)));
 static task_t*  current = NULL;
 static task_t*  idle    = NULL;
-static uint32_t next_id = 0;
 static uint32_t slice   = 0;
 
 const char* task_state_name(task_state_t s) {
@@ -96,7 +95,7 @@ task_t* task_create(const char* name, task_entry_t entry, void* arg) {
 
     task_t* t = &tasks[slot];
     memset(t, 0, sizeof(*t));
-    t->id = next_id++;
+    t->id = (uint32_t)slot;                 /* ID = nomor slot, dipakai ulang bersama slotnya */
     for (int i = 0; i < TASK_NAME_LEN - 1 && name[i]; i++) t->name[i] = name[i];
     t->stack = stacks[slot];
     t->entry = entry;
@@ -170,6 +169,20 @@ void task_exit(void) {
     for (;;) __asm__ volatile("hlt");
 }
 
+/* Hentikan paksa thread lain (dipakai saat Ctrl+C). Shell dan idle tidak boleh
+   dimatikan. Thread yang dimatikan tidak pernah dijadwalkan lagi; slotnya
+   bisa dipakai ulang oleh task_create(). */
+void task_kill(task_t* t) {
+    if (!t || t == &tasks[0] || t == idle) return;
+    if (t == current) { task_exit(); return; }
+    uint32_t f = irq_save();
+    if (t->state != TASK_UNUSED && t->state != TASK_TERMINATED) {
+        t->wake_tick = 0;
+        t->state = TASK_TERMINATED;
+    }
+    irq_restore(f);
+}
+
 /* ---------- tampilan & demo ---------- */
 
 static void pad(const char* s, int width) {
@@ -217,7 +230,35 @@ static void thread_greeter(void* arg) {
     kprintf("  [greeter] selesai\n");
 }
 
+/* Tidur di shell, tapi memeriksa Ctrl+C tiap 10 ms. Return 1 kalau diinterupsi. */
+static int sleep_interruptible(uint32_t ms) {
+    uint32_t end = timer_ticks() + (ms * TIMER_HZ + 999) / 1000;
+    while ((int32_t)(timer_ticks() - end) < 0) {
+        if (kinterrupted()) return 1;
+        task_sleep(10);
+    }
+    return 0;
+}
+
+/* Buang thread TERMINATED sisa demo sebelumnya supaya tabel demo bersih.
+   Aman: thread TERMINATED sudah pindah dari stack-nya dan tidak dijadwalkan lagi. */
+static void reap_terminated(void) {
+    uint32_t f = irq_save();
+    for (int i = 0; i < TASK_MAX; i++)
+        if (tasks[i].state == TASK_TERMINATED) tasks[i].state = TASK_UNUSED;
+    irq_restore(f);
+}
+
+/* Ctrl+C saat demo: matikan thread demo, tampilkan statusnya */
+static void demo_abort(task_t* a, task_t* b) {
+    task_kill(a);
+    task_kill(b);
+    kputs("\n^C demo dibatalkan, thread dihentikan:\n");
+    task_dump();
+}
+
 static void cmd_demo_thread(int argc, char** argv) {
+    reap_terminated();
     task_t* a = task_create("counter", thread_counter, NULL);
     task_t* b = task_create("greeter", thread_greeter, NULL);
     if (!a || !b) {
@@ -237,14 +278,14 @@ static void cmd_demo_thread(int argc, char** argv) {
     task_dump();
     irq_restore(f);
 
-    kprintf("\n[3] Snapshot tiap 250 ms (shell yang mencetak, jadi selalu RUNNING):\n");
+    kprintf("\n[3] Snapshot tiap 250 ms (Ctrl+C = batal):\n");
     for (int i = 1; i <= 4; i++) {
-        task_sleep(250);
+        if (sleep_interruptible(250)) { demo_abort(a, b); return; }
         kprintf("-- snapshot %d --\n", i);
         task_dump();
     }
 
-    task_sleep(600);
+    if (sleep_interruptible(600)) { demo_abort(a, b); return; }
     kprintf("\n[4] Akhir -> semua TERMINATED:\n");
     task_dump();
 }
@@ -261,11 +302,16 @@ static void spinner(void* arg) {
 }
 
 static void cmd_demo_preempt(int argc, char** argv) {
-    kprintf("Dua thread loop tanpa yield. Satu huruf = satu tick CPU milik thread itu:\n");
+    reap_terminated();
+    kprintf("Dua thread loop tanpa yield, 1 huruf = 1 tick CPU (Ctrl+C = batal):\n");
     task_t* a = task_spawn("spin-A", spinner, (void*)'A');
     task_t* b = task_spawn("spin-B", spinner, (void*)'B');
-    if (!a || !b) { kprintf("gagal membuat thread: slot penuh\n"); return; }
-    task_sleep(1600);
+    if (!a || !b) {
+        task_kill(a); task_kill(b);
+        kprintf("gagal membuat thread: slot penuh\n");
+        return;
+    }
+    if (sleep_interruptible(1600)) { demo_abort(a, b); return; }
     kputc('\n');
     kprintf("giliran A=%u, B=%u (ganti tiap %d tick = %d ms)\n",
             a->switches, b->switches, TASK_QUANTUM, TASK_QUANTUM * 1000 / TIMER_HZ);
@@ -278,7 +324,7 @@ void task_init(void) {
 
     /* Thread 0 = eksekusi yang sedang berjalan (kernel_main -> CLI) */
     task_t* shell = &tasks[0];
-    shell->id    = next_id++;
+    shell->id    = 0;
     shell->name[0] = 's'; shell->name[1] = 'h'; shell->name[2] = 'e';
     shell->name[3] = 'l'; shell->name[4] = 'l';
     shell->state = TASK_RUNNING;
