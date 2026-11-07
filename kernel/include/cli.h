@@ -35,5 +35,6 @@ const cli_cmd_t*   cli_get(int i);
 /* Init tiap grup perintah (folder kernel/cmd), dipanggil dari cli_init() */
 void cmd_system_init(void);
 void cmd_info_init(void);
+void cmd_vfs_init(void);
 
 #endif

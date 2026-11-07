@@ -214,4 +214,5 @@ void cli_run(void) {
 void cli_init(void) {
     cmd_info_init();
     cmd_system_init();
+    cmd_vfs_init();
 }
