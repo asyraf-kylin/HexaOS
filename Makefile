@@ -1,4 +1,4 @@
-# Makefile HEXA OS
+# Makefile HexaOS
 .RECIPEPREFIX := >
 
 CC      := gcc
@@ -53,7 +53,6 @@ $(ISO): $(KERNEL) boot/grub/grub.cfg
 > $(GRUB_MKRESCUE) -o $@ $(ISO_DIR)
 > @echo "ISO OK -> $@"
 
-# Jalankan lewat GRUB (bukan opsi -kernel)
 run-iso: $(ISO)
 > $(QEMU) -cdrom $(ISO) -serial stdio -m 64M
 
