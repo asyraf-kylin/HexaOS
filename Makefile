@@ -1,5 +1,4 @@
 # Makefile HEXA OS
-# Baris perintah diawali ">" (bukan Tab), jadi aman di-copy-paste dari chat.
 .RECIPEPREFIX := >
 
 CC      := gcc
@@ -39,15 +38,12 @@ build/%.o: %.c $(wildcard kernel/include/*.h)
 > @mkdir -p $(dir $@)
 > $(CC) $(CFLAGS) -c $< -o $@
 
-# Jendela QEMU (VGA) + terminal ini jadi input/output serial
 run: $(KERNEL)
 > $(QEMU) -kernel $(KERNEL) -serial stdio -m 64M
 
-# Tanpa jendela: semua lewat terminal (keluar: Ctrl-A lalu X)
 run-nox: $(KERNEL)
 > $(QEMU) -kernel $(KERNEL) -nographic -m 64M
 
-# ISO bootable: GRUB memuat kernel dari media (butuh grub, xorriso, mtools)
 iso: $(ISO)
 
 $(ISO): $(KERNEL) boot/grub/grub.cfg
