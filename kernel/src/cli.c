@@ -5,22 +5,27 @@ static cli_cmd_t cmds[CLI_MAX_CMDS];
 static int cmd_count = 0;
 
 /* 1. Pendaftaran perintah (dipanggil modul lain) */
-static int do_register(const char* name, const char* help, cli_handler_t fn, int core) {
+static int do_register(const char* name, const char* help, cli_handler_t fn, int core, int max_args) {
     if (cmd_count >= CLI_MAX_CMDS) return -1;
     cmds[cmd_count].name = name;
     cmds[cmd_count].help = help;
     cmds[cmd_count].fn   = fn;
     cmds[cmd_count].core = core;
+    cmds[cmd_count].max_args = max_args;
     cmd_count++;
     return 0;
 }
 
 int cli_register(const char* name, const char* help, cli_handler_t fn) {
-    return do_register(name, help, fn, 0);
+    return do_register(name, help, fn, 0, 0);          /* tanpa argumen */
 }
 
 int cli_register_core(const char* name, const char* help, cli_handler_t fn) {
-    return do_register(name, help, fn, 1);
+    return do_register(name, help, fn, 1, 0);          /* tanpa argumen */
+}
+
+int cli_register_args(const char* name, const char* help, cli_handler_t fn, int max_args) {
+    return do_register(name, help, fn, 0, max_args);
 }
 
 int cli_count(void) { return cmd_count; }
@@ -158,12 +163,14 @@ static void read_line(char* buf, int max) {
     buf[len] = '\0';
 }
 
-/* 3. Pecah "cat a.txt" jadi argv = {"cat", "a.txt"} */
+/* 3. Pecah "cat a.txt" jadi argv = {"cat", "a.txt"}.
+      Return jumlah token, atau -1 kalau token melebihi CLI_MAX_ARGS. */
 static int parse(char* line, char** argv) {
     int argc = 0;
-    while (*line && argc < CLI_MAX_ARGS) {
+    for (;;) {
         while (*line == ' ') *line++ = '\0';
         if (*line == '\0') break;
+        if (argc >= CLI_MAX_ARGS) return -1;
         argv[argc++] = line;
         while (*line && *line != ' ') line++;
     }
@@ -181,10 +188,18 @@ void cli_run(void) {
         hist_add(line);                   /* simpan dulu, sebelum parse merusak isi line */
         int argc = parse(line, argv);
         if (argc == 0) continue;
+        if (argc < 0) { kprintf("too many arguments (max %d words)\n", CLI_MAX_ARGS); continue; }
 
         int found = 0;
         for (int i = 0; i < cmd_count; i++) {
             if (kstrcmp(argv[0], cmds[i].name) == 0) {
+                int max = cmds[i].max_args;
+                if (max >= 0 && argc - 1 > max) {          /* argumen berlebih: tolak, jangan jalankan */
+                    if (max == 0) kprintf("%s: this command takes no arguments\n", argv[0]);
+                    else          kprintf("%s: too many arguments (max %d)\n", argv[0], max);
+                    found = 1;
+                    break;
+                }
                 kinterrupt_clear();   /* hapus flag Ctrl+C sebelum menjalankan perintah */
                 cmds[i].fn(argc, argv);
                 kinterrupt_clear();

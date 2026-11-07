@@ -253,7 +253,7 @@ static void reap_terminated(void) {
 static void demo_abort(task_t* a, task_t* b) {
     task_kill(a);
     task_kill(b);
-    kputs("\n^C");
+    kputs("\n^C\n");                        /* newline: prompt berikutnya di baris baru */
 }
 
 static void cmd_demo_thread(int argc, char** argv) {
