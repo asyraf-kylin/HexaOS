@@ -13,6 +13,8 @@
  */
 #include "protect.h"
 #include "sync.h"
+#include "kernel.h"
+#include "task.h"
 
 #define MAX_REGIONS 16
 #define MAX_THREADS 32

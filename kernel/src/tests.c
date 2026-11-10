@@ -5,6 +5,7 @@
  *
  * Daftarkan dua fungsi test_* di bawah ke tabel perintah shell.
  */
+#include "kernel.h"
 #include "sync.h"
 #include "protect.h"
 
