@@ -11,10 +11,9 @@
  *   Membutuhkan GDT dengan segmen ring 3 (0x1B kode, 0x23 data) dan TSS
  *   (esp0) yang diset oleh bagian GDT/boot.
  */
+#include "kernel.h"
 #include "protect.h"
 #include "sync.h"
-#include "kernel.h"
-#include "task.h"
 
 #define MAX_REGIONS 16
 #define MAX_THREADS 32
