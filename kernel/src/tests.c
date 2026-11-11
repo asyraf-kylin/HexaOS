@@ -5,15 +5,21 @@
  *
  * Daftarkan dua fungsi test_* di bawah ke tabel perintah shell.
  */
-#include "sync.h"
+#include "sync.h"      /* mutex_* : bagian a milik Yusuf */
 #include "protect.h"
+#include "task.h"      /* task_spawn, task_yield, task_current (Anggota 2) */
+#include "kernel.h"    /* kprintf -- sesuaikan kalau deklarasinya ada di header lain */
 
-/* ADAPTER: sesuaikan dengan thread_create milik HexaOS.
- * Diasumsikan: membuat thread baru berstatus Ready yang menjalankan fn(arg). */
-extern int32_t thread_create(void (*fn)(void *), void *arg, const char *name);
+/* Adapter ke API thread HexaOS (task.h) */
+static int32_t cur_id(void)
+{
+    task_t *t = task_current();
+    return t ? (int32_t)t->id : -1;
+}
+static void spawn(void (*fn)(void *), const char *name) { task_spawn(name, fn, 0); }
 
 static volatile int  done_count;
-static void wait_all(int n) { while (done_count < n) thread_yield(); }
+static void wait_all(int n) { while (done_count < n) task_yield(); }
 static void mark_done(void) { __sync_fetch_and_add(&done_count, 1); }
 
 /* ======================== (c) Deadlock ============================ */
@@ -27,13 +33,13 @@ static void dl_thread(mutex_t *first, mutex_t *second, const char *who)
         /* SOLUSI: kedua thread mengambil lock dengan urutan global yang sama */
         mutex_lock_ordered(first, second);
         kprintf("[%s] memegang A dan B (urutan terurut), bekerja...\n", who);
-        thread_yield();
+        task_yield();
         mutex_unlock_ordered(first, second);
         kprintf("[%s] selesai tanpa deadlock\n", who);
     } else {
         mutex_lock(first);
         kprintf("[%s] dapat '%s', menunggu '%s'...\n", who, first->name, second->name);
-        thread_yield();                  /* beri kesempatan thread lain mengunci mutex kedua */
+        task_yield();                  /* beri kesempatan thread lain mengunci mutex kedua */
         if (!mutex_timedlock(second, DEADLOCK_TIMEOUT_TICKS)) {
             /* DETEKSI + PEMULIHAN: timeout -> lepas lock yang dipegang */
             kprintf("[%s] DEADLOCK TERDETEKSI (timeout) -> melepas '%s'\n", who, first->name);
@@ -57,8 +63,8 @@ void test_deadlock(void)
 
     kprintf("== Skenario 1: deadlock (T1: A->B, T2: B->A) + deteksi timeout ==\n");
     fix_mode = 0; done_count = 0;
-    thread_create(dl_t1, 0, "dl-T1");
-    thread_create(dl_t2, 0, "dl-T2");
+    spawn(dl_t1, "dl-T1");
+    spawn(dl_t2, "dl-T2");
     wait_all(2);
 
     mutex_init(&lock_a, "A");
@@ -66,33 +72,64 @@ void test_deadlock(void)
 
     kprintf("== Skenario 2: solusi lock ordering ==\n");
     fix_mode = 1; done_count = 0;
-    thread_create(dl_t1, 0, "dl-T1");
-    thread_create(dl_t2, 0, "dl-T2");
+    spawn(dl_t1, "dl-T1");
+    spawn(dl_t2, "dl-T2");
     wait_all(2);
 }
 
 /* ===================== (d) Proteksi akses ========================= */
-static char user_msg[] = "Halo dari user mode\n";
+/* Semua data milik "program user" dikumpulkan di satu struct supaya region
+ * user-data tepat menutupi data ini saja (selain itu = memori kernel). */
+static struct {
+    char msg[32];      /* pesan yang dicetak lewat SYS_WRITE */
+    char pw_salah[16];
+    char pw_awal[16];  /* password awal root */
+    char pw_baru[16];
+} udata = { "Halo dari user mode\n", "asal", "root", "hexa123" };
+
 static volatile int prot_done;
+static int kernel_var;                    /* variabel milik kernel (bukan di region user) */
+
+static void cek(const char *ket, int32_t hasil, int32_t harapan)
+{
+    kprintf("[user] %s -> %d (%s)\n", ket, hasil, hasil == harapan ? "SESUAI" : "SALAH");
+}
 
 static void user_thread(void *arg)
 {
     (void)arg;
-    int32_t me = thread_current_id();
-    protect_set_priv(me, PRIV_USER);
+    protect_set_priv(cur_id(), PRIV_USER);
 
     kprintf("[user] pid = %d\n", protect_syscall(SYS_GETPID, 0, 0));
 
-    /* 1. Buffer valid milik user -> diizinkan */
-    protect_syscall(SYS_WRITE, (uint32_t)user_msg, sizeof(user_msg) - 1);
+    /* --- User space vs kernel space --- */
+    protect_syscall(SYS_WRITE, (uint32_t)udata.msg, 20);                       /* diizinkan */
+    cek("SYS_WRITE ke memori kernel (harus ditolak)",
+        protect_syscall(SYS_WRITE, (uint32_t)&kernel_var, 4), E_FAULT);
+    cek("SYS_REBOOT sebagai user (harus ditolak)",
+        protect_syscall(SYS_REBOOT, 0, 0), E_PERM);
 
-    /* 2. Buffer menunjuk memori kernel (di luar halaman user-data) -> harus ditolak */
-    int32_t r = protect_syscall(SYS_WRITE, ((uint32_t)user_msg & ~0xFFFu) + 0x2000, 16);
-    kprintf("[user] SYS_WRITE ke memori kernel -> %d (%s)\n", r, r == E_FAULT ? "DITOLAK, benar" : "SALAH");
+    /* --- Mode root dengan password --- */
+    cek("ganti password sebagai user (harus ditolak)",
+        protect_syscall(SYS_SETPW, (uint32_t)udata.pw_awal, (uint32_t)udata.pw_baru), E_PERM);
+    cek("masuk root, password salah (harus ditolak)",
+        protect_syscall(SYS_SU, (uint32_t)udata.pw_salah, 0), E_PERM);
+    cek("masuk root, password benar",
+        protect_syscall(SYS_SU, (uint32_t)udata.pw_awal, 0), E_OK);
+    cek("SYS_REBOOT sebagai root (diizinkan)",
+        protect_syscall(SYS_REBOOT, 0, 0), E_OK);
+    cek("ganti password sebagai root",
+        protect_syscall(SYS_SETPW, (uint32_t)udata.pw_awal, (uint32_t)udata.pw_baru), E_OK);
 
-    /* 3. Operasi khusus kernel -> harus ditolak */
-    r = protect_syscall(SYS_REBOOT, 0, 0);
-    kprintf("[user] SYS_REBOOT -> %d (%s)\n", r, r == E_PERM ? "DITOLAK, benar" : "SALAH");
+    /* --- Kembali ke user, password lama sudah tidak berlaku --- */
+    protect_syscall(SYS_DROP, 0, 0);
+    cek("SYS_REBOOT setelah keluar dari root (harus ditolak)",
+        protect_syscall(SYS_REBOOT, 0, 0), E_PERM);
+    cek("masuk root pakai password LAMA (harus ditolak)",
+        protect_syscall(SYS_SU, (uint32_t)udata.pw_awal, 0), E_PERM);
+    cek("masuk root pakai password BARU",
+        protect_syscall(SYS_SU, (uint32_t)udata.pw_baru, 0), E_OK);
+    protect_syscall(SYS_DROP, 0, 0);
 
     prot_done = 1;
 }
@@ -100,14 +137,14 @@ static void user_thread(void *arg)
 void test_protect(void)
 {
     protect_init();
-    /* Sesuaikan alamat region dengan linker script HexaOS */
-    protect_add_region(0x00100000, 0x00400000, PERM_R | PERM_W | PERM_X,             "kernel");
-    protect_add_region((uint32_t)user_msg & ~0xFFFu, 0x1000, PERM_R | PERM_W | PERM_USER, "user-data");
+    /* Sesuaikan alamat region kernel dengan linker script HexaOS (boot/linker.ld) */
+    protect_add_region(0x00100000, 0x00400000, PERM_R | PERM_W | PERM_X, "kernel");
+    protect_add_region((uint32_t)&udata, sizeof(udata), PERM_R | PERM_W | PERM_USER, "user-data");
 
-    kprintf("== Tes proteksi user/kernel ==\n");
+    kprintf("== Tes proteksi user/kernel + mode root (password) ==\n");
     kprintf("[kernel] SYS_REBOOT oleh kernel -> %d\n", protect_syscall(SYS_REBOOT, 0, 0));
 
     prot_done = 0;
-    thread_create(user_thread, 0, "user-demo");
-    while (!prot_done) thread_yield();
+    spawn(user_thread, "user-demo");
+    while (!prot_done) task_yield();
 }
