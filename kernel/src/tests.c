@@ -5,11 +5,6 @@
  *
  * Daftarkan dua fungsi test_* di bawah ke tabel perintah shell.
  */
-#include "sync.h"      /* mutex_* : bagian a milik Yusuf */
-#include "protect.h"
-#include "task.h"      /* task_spawn, task_yield, task_current (Anggota 2) */
-#include "kernel.h"    /* kprintf -- sesuaikan kalau deklarasinya ada di header lain */
-
 /* Adapter ke API thread HexaOS (task.h) */
 static int32_t cur_id(void)
 {
