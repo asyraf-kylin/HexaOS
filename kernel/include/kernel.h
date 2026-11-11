@@ -19,7 +19,9 @@ typedef signed int         i32;
    bentrok dengan NULL di bawah */
 typedef __SIZE_TYPE__ size_t;
 
+#ifndef NULL
 #define NULL ((void*)0)
+#endif
 
 /* ---- Port I/O x86 (dipakai vga, serial, timer, keyboard, idt) ---- */
 static inline void outb(uint16_t port, uint8_t val) {

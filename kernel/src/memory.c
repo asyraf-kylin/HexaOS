@@ -1,6 +1,7 @@
 #include <stdint.h>
 #include <stddef.h>
 #include "memory.h"
+#include "kernel.h"
 
 #define HEAP_SIZE (1024 * 1024) // 1 MB Heap
 
@@ -20,6 +21,7 @@ void memory_init(void) {
     heap_start->size = HEAP_SIZE - META_SIZE;
     heap_start->next = NULL;
     heap_start->free = 1;
+    kprintf("[ OK ] Memory manager initialized (1 MB heap)\n");
 }
 
 void *kmalloc(size_t size) {

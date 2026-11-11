@@ -33,6 +33,7 @@ void vfs_init(void) {
         file_table[i].size = 0;
         file_table[i].name[0] = '\0';
     }
+    kprintf("[ OK ] Virtual file system initialized (RAMFS)\n");
 }
 
 int vfs_create(const char *name) {

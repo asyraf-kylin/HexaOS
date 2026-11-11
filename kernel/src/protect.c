@@ -11,6 +11,7 @@
  *   Membutuhkan GDT dengan segmen ring 3 (0x1B kode, 0x23 data) dan TSS
  *   (esp0) yang diset oleh bagian GDT/boot.
  */
+#include "kernel.h"
 #include "protect.h"
 #include "task.h"      /* task_current(), task_t (milik Anggota 2) */
 #include "kernel.h"    /* kprintf -- sesuaikan kalau deklarasinya ada di header lain */

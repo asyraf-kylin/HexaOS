@@ -1,3 +1,10 @@
+/*
+ * tests.c - Skenario pengujian Anggota 3 (bagian c dan d)
+ *   demo-deadlock : deadlock 2 thread + 2 mutex, lalu solusinya
+ *   demo-protect  : user mode vs kernel mode
+ *
+ * Daftarkan dua fungsi test_* di bawah ke tabel perintah shell.
+ */
 #include "kernel.h"
 #include "sync.h"
 #include "protect.h"
