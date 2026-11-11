@@ -21,6 +21,12 @@ typedef struct {
 void cli_init(void);
 void cli_run(void);        // loop utama: baca input, parse, jalankan
 
+/* Cek apakah shell sedang dalam mode root */
+int  cli_is_root(void);
+
+/* Baca password dari keyboard (tanpa echo, tampilkan '*') */
+void cli_read_password(char* buf, int max);
+
 /* Dipanggil dari modul lain untuk mendaftarkan perintahnya */
 /* cli_register / cli_register_core: perintah TANPA argumen. Kalau pengguna mengetik
    argumen tambahan (mis. "help xyz"), shell menolaknya dengan pesan error.

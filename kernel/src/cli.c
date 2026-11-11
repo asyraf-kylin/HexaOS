@@ -1,5 +1,12 @@
 #include "cli.h"
 #include "kernel.h"
+#include "protect.h"
+#include "task.h"
+
+/* Mode root shell: 0 = user biasa, 1 = root */
+static int shell_root = 0;
+
+int cli_is_root(void) { return shell_root; }
 
 static cli_cmd_t cmds[CLI_MAX_CMDS];
 static int cmd_count = 0;
@@ -163,6 +170,87 @@ static void read_line(char* buf, int max) {
     buf[len] = '\0';
 }
 
+/* 2b. Baca password: karakter diganti '*', tidak disimpan ke riwayat */
+void cli_read_password(char* buf, int max) {
+    int len = 0;
+    for (;;) {
+        char c = kgetc();
+        if (c == '\r' || c == '\n') { kputc('\n'); break; }
+        if (c == KEY_CTRL_C) { kputs("^C\n"); len = 0; break; }
+        if ((c == 8 || c == 127) && len > 0) {
+            len--;
+            kputs("\b \b");
+            continue;
+        }
+        if (c < ' ') continue;
+        if (len < max - 1) {
+            buf[len++] = c;
+            kputc('*');
+        }
+    }
+    buf[len] = '\0';
+}
+
+/* ---- Perintah bawaan: su, exit, passwd ---- */
+static void cmd_su(int argc, char** argv) {
+    (void)argc; (void)argv;
+    if (shell_root) {
+        kprintf("Sudah dalam mode root.\n");
+        return;
+    }
+    char pw[32];
+    kprintf("Password: ");
+    cli_read_password(pw, 32);
+    if (pw[0] == '\0') return;                  /* Ctrl+C / kosong */
+
+    if (protect_request_root(pw) == E_OK) {
+        shell_root = 1;
+        kprintf("root: akses diterima.\n");
+    } else {
+        kprintf("su: password salah.\n");
+    }
+}
+
+static void cmd_exit_root(int argc, char** argv) {
+    (void)argc; (void)argv;
+    if (!shell_root) {
+        kprintf("Sudah dalam mode user.\n");
+        return;
+    }
+    protect_drop_root();
+    shell_root = 0;
+    kprintf("Kembali ke mode user.\n");
+}
+
+static void cmd_passwd(int argc, char** argv) {
+    (void)argc; (void)argv;
+    if (!shell_root) {
+        kprintf("passwd: harus dalam mode root. Ketik 'su' terlebih dahulu.\n");
+        return;
+    }
+    char old_pw[32], new_pw[32], confirm[32];
+    kprintf("Password lama: ");
+    cli_read_password(old_pw, 32);
+    if (old_pw[0] == '\0') return;
+    kprintf("Password baru: ");
+    cli_read_password(new_pw, 32);
+    if (new_pw[0] == '\0') return;
+    kprintf("Konfirmasi password baru: ");
+    cli_read_password(confirm, 32);
+    if (confirm[0] == '\0') return;
+
+    /* Cek konfirmasi */
+    if (kstrcmp(new_pw, confirm) != 0) {
+        kprintf("passwd: konfirmasi tidak cocok.\n");
+        return;
+    }
+    if (protect_change_password(old_pw, new_pw) == E_OK) {
+        kprintf("passwd: password berhasil diganti.\n");
+    } else {
+        kprintf("passwd: password lama salah.\n");
+    }
+}
+
 /* 3. Pecah "cat a.txt" jadi argv = {"cat", "a.txt"}.
       Return jumlah token, atau -1 kalau token melebihi CLI_MAX_ARGS. */
 static int parse(char* line, char** argv) {
@@ -182,8 +270,16 @@ void cli_run(void) {
     char  line[CLI_BUF_SIZE];
     char* argv[CLI_MAX_ARGS];
 
+    /* Shell mulai dalam mode user */
+    int32_t tid = task_current() ? (int32_t)task_current()->id : 0;
+    protect_set_priv(tid, PRIV_USER);
+    shell_root = 0;
+
     for (;;) {
-        kprintf("kylin> "); /* user */
+        if (shell_root)
+            kprintf("root@kylin> ");
+        else
+            kprintf("user@kylin> ");
         read_line(line, CLI_BUF_SIZE);
         hist_add(line);                   /* simpan dulu, sebelum parse merusak isi line */
         int argc = parse(line, argv);
@@ -215,4 +311,9 @@ void cli_init(void) {
     cmd_info_init();
     cmd_system_init();
     cmd_vfs_init();
+
+    /* Perintah proteksi: su / exit / passwd */
+    cli_register("su",     "masuk ke mode root (memerlukan password)", cmd_su);
+    cli_register("exit",   "keluar dari mode root, kembali ke user",  cmd_exit_root);
+    cli_register("passwd", "ganti password root (harus mode root)",   cmd_passwd);
 }

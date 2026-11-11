@@ -1,6 +1,7 @@
 /* cmd_system.c - perintah sistem: clear, reboot, shutdown, int3 */
 #include "cli.h"
 #include "kernel.h"
+#include "protect.h"
 
 static void cmd_clear(int argc, char** argv) {
     (void)argc; (void)argv;
@@ -9,6 +10,11 @@ static void cmd_clear(int argc, char** argv) {
 
 static void cmd_reboot(int argc, char** argv) {
     (void)argc; (void)argv;
+    if (!cli_is_root()) {
+        kprintf("reboot: Akses ditolak. Harus dalam mode root.\n");
+        kprintf("        Ketik 'su' untuk masuk ke mode root.\n");
+        return;
+    }
     kprintf("Rebooting...\n");
     kdelay_ms(300);
     system_reboot();
@@ -16,6 +22,11 @@ static void cmd_reboot(int argc, char** argv) {
 
 static void cmd_shutdown(int argc, char** argv) {
     (void)argc; (void)argv;
+    if (!cli_is_root()) {
+        kprintf("shutdown: Akses ditolak. Harus dalam mode root.\n");
+        kprintf("          Ketik 'su' untuk masuk ke mode root.\n");
+        return;
+    }
     kprintf("Shutting down...\n");
     kdelay_ms(300);
     system_shutdown();
