@@ -24,8 +24,11 @@ int thread_queue_push(thread_queue_t* q, task_t* t) {
     wait_node_t* n = node_alloc(t);
     if (!n) return 0;
 
-    if (q->tail) q->tail->next = n;
-    else
+    if (q->tail) {
+        q->tail->next = n;
+    } else {
+        q->head = n;
+    }
     q->tail = n;
     return 1;
 }

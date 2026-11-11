@@ -1,15 +1,15 @@
-#ifndef SYNC_H
-#define SYNC_H
+#ifndef HEXAOS_SYNC_H
+#define HEXAOS_SYNC_H
 
 #include "kernel.h"
-#include "sync.h"
 #include "mutex.h"
 #include "semaphore.h"
 
-void sync_init(void) {
-    mutex_modul_init();
-    semaphore_modul_init();
-    kprintf(" [ OK ] Sync primitve: mutex & semaphore\n");
-}
+/* Fungsi pengujian / demo */
+void test_deadlock(void);
+void test_protect(void);
+
+/* Inisialisasi modul sync */
+void sync_init(void);
 
 #endif

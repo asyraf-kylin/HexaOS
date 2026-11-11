@@ -1,4 +1,4 @@
-#ifndef SEMAPHOPRE_H
+#ifndef SEMAPHORE_H
 #define SEMAPHORE_H
 
 #include "task.h"
@@ -10,7 +10,7 @@ typedef struct {
 } semaphore_t;
 
 void semaphore_init(semaphore_t* s, int value);
-void sempahore_wait(semaphore_t* s);
+void semaphore_wait(semaphore_t* s);
 void semaphore_signal(semaphore_t* s);
 
 void semaphore_modul_init(void);

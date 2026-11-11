@@ -1,6 +1,11 @@
 #include "kernel.h"
 #include "semaphore.h"
 
+void semaphore_init(semaphore_t* s, int value) {
+    s->count = value;
+    thread_queue_init(&s->wait_queue);
+}
+
 void semaphore_wait(semaphore_t* s) {
     for (;;) {
         uint32_t f = irq_save();
@@ -13,6 +18,7 @@ void semaphore_wait(semaphore_t* s) {
             s->count++;
             irq_restore(f);
             kprintf(" [sync] pool antrian penuh, mencoba lagi...\n");
+            task_yield();
             continue;
         }
         task_block();
@@ -21,7 +27,7 @@ void semaphore_wait(semaphore_t* s) {
     }
 }
 
-void sempahore_signal(semaphore_t* s) {
+void semaphore_signal(semaphore_t* s) {
     uint32_t f = irq_save();
     s->count++;
     if (s->count <= 0) {

@@ -14,7 +14,7 @@ typedef struct thread_queue {
 } thread_queue_t;
 
 void    thread_queue_init(thread_queue_t* q);
-int     thread_queue_push(thread_queue_t q, task_t* t);
+int     thread_queue_push(thread_queue_t* q, task_t* t);
 task_t* thread_queue_pop(thread_queue_t* q);
 
 #endif
