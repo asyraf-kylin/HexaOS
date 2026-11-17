@@ -54,22 +54,28 @@ int vfs_create(const char *name) {
     return -2; // Disk penuh
 }
 
+/* Perbarui vfs_write di vfs.c agar aman dari OOM */
 int vfs_write(const char *name, const char *data) {
     for (int i = 0; i < MAX_FILES; i++) {
         if (file_table[i].is_used && str_cmp(file_table[i].name, name) == 0) {
+            size_t len = str_len(data);
+
+            // Alokasi blok memori baru terlebih dahulu (aman dari OOM)
+            char *new_content = (char *)kmalloc(len + 1);
+            if (!new_content) return -3; // Out of memory
+
+            // Bebaskan konten lama jika ada
             if (file_table[i].content) {
                 kfree(file_table[i].content);
             }
-            size_t len = str_len(data);
-            file_table[i].content = (char *)kmalloc(len + 1);
-            if (!file_table[i].content) return -3; // Out of memory
 
+            file_table[i].content = new_content; // <-- Gunakan ini, bukan file_content
             str_copy(file_table[i].content, data, len + 1);
             file_table[i].size = len;
             return 0;
         }
     }
-    return -1; // File tidak ditemukan
+    return -1;
 }
 
 char *vfs_read(const char *name) {
@@ -111,37 +117,17 @@ void vfs_list(void) {
     }
 }
 
-void vfs_run_test(void) {
-    kprintf("\n[TEST] Memulai Pengujian Modul VFS & Memory...\n");
-    
-    // 1. Create Test
-    if (vfs_create("test.txt") == 0) {
-        kprintf(" [PASS] vfs_create('test.txt')\n");
-    } else {
-        kprintf(" [FAIL] vfs_create\n");
+/* Tambahkan fungsi ini di vfs.c */
+int vfs_name_at(int index, char *out, size_t max) {
+    int found = 0;
+    for (int i = 0; i < MAX_FILES; i++) {
+        if (file_table[i].is_used) {
+            if (found == index) {
+                str_copy(out, file_table[i].name, max);
+                return 0; // Berhasil
+            }
+            found++;
+        }
     }
-
-    // 2. Write Test
-    if (vfs_write("test.txt", "HexaOS RAMDisk Ready!") == 0) {
-        kprintf(" [PASS] vfs_write\n");
-    } else {
-        kprintf(" [FAIL] vfs_write\n");
-    }
-
-    // 3. Read Test
-    char *res = vfs_read("test.txt");
-    if (res && str_cmp(res, "HexaOS RAMDisk Ready!") == 0) {
-        kprintf(" [PASS] vfs_read: %s\n", res);
-    } else {
-        kprintf(" [FAIL] vfs_read\n");
-    }
-
-    // 4. Delete Test
-    if (vfs_delete("test.txt") == 0) {
-        kprintf(" [PASS] vfs_delete\n");
-    } else {
-        kprintf(" [FAIL] vfs_delete\n");
-    }
-
-    kprintf("[TEST] Pengujian selesai.\n\n");
+    return -1; // Tidak ditemukan pada indeks tersebut
 }

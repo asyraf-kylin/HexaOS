@@ -82,3 +82,35 @@ size_t memory_get_free(void) {
 size_t memory_get_used(void) {
     return HEAP_SIZE - memory_get_free();
 }
+
+/* ==========================================================
+ * Pengujian Alokasi Memori / OOM (Anggota 4 - A4)
+ * ========================================================== */
+void test_mem(void) {
+    kprintf("[MEM] Pengujian alokasi heap sampai OOM...\n");
+    kprintf("[MEM] Titik Awal: Heap stabil (Free: %u bytes).\n", (unsigned int)memory_get_free());
+    
+    void *blocks[1024];
+    int count = 0;
+    
+    // Alokasi blok 1 KB berulang kali sampai kmalloc mengembalikan NULL
+    while (count < 1024) {
+        void *ptr = kmalloc(1024);
+        if (!ptr) {
+            kprintf("[MEM] Titik OOM Tercapai: kmalloc mengembalikan NULL setelah %d blok.\n", count);
+            break;
+        }
+        blocks[count++] = ptr;
+    }
+    
+    kprintf("[MEM] Status saat OOM - Terpakai: %u bytes, Sisa: %u bytes.\n", 
+            (unsigned int)memory_get_used(), (unsigned int)memory_get_free());
+
+    kprintf("[MEM] Membebaskan kembali seluruh blok memori (kfree)...\n");
+    for (int i = 0; i < count; i++) {
+        kfree(blocks[i]);
+    }
+    
+    kprintf("[MEM] Titik Selesai: Semua memori berhasil dipulihkan ke keadaan awal (Free: %u bytes).\n", 
+            (unsigned int)memory_get_free());
+}

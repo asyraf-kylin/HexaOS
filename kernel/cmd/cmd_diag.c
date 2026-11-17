@@ -7,10 +7,10 @@ typedef struct { const char* name; const char* desc; void (*fn)(void); } diag_en
 static const diag_entry_t diag_table[] = {
     { "threads",  "siklus status thread NEW/READY/RUNNING/WAITING/TERMINATED", test_threads  },
     { "preempt",  "bukti preemption Round Robin (tanpa yield)",                test_preempt  },
-    { "race",     "race condition: shared counter tanpa vs dengan mutex",      test_race     },
-    { "deadlock", "deadlock 2 mutex + solusi lock ordering",                   test_deadlock },
-    { "mem",      "kmalloc sampai Out-of-Memory lalu kfree semuanya",          test_mem      },
-    { "protect",  "uji user mode vs kernel mode",                              test_protect  },
+    { "race",     "race condition: shared counter tanpa vs dengan mutex",     test_race     },
+    { "deadlock", "deadlock 2 mutex + solusi lock ordering",                  test_deadlock },
+    { "mem",      "kmalloc sampai Out-of-Memory lalu kfree semuanya",         test_mem      },
+    { "protect",  "uji user mode vs kernel mode",                             test_protect  },
 };
 #define DIAG_COUNT ((int)(sizeof(diag_table) / sizeof(diag_table[0])))
 

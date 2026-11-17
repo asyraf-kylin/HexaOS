@@ -7,6 +7,7 @@
 void memory_init(void);
 void *kmalloc(size_t size);
 void kfree(void *ptr);
+void test_mem(void);
 size_t memory_get_free(void);
 size_t memory_get_used(void);
 
