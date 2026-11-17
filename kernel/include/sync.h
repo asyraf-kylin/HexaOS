@@ -8,6 +8,7 @@
 /* Fungsi pengujian / demo */
 void test_deadlock(void);
 void test_protect(void);
+void test_race(void);
 
 /* Inisialisasi modul sync */
 void sync_init(void);
