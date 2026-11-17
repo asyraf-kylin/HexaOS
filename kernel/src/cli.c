@@ -12,27 +12,33 @@ static cli_cmd_t cmds[CLI_MAX_CMDS];
 static int cmd_count = 0;
 
 /* 1. Pendaftaran perintah (dipanggil modul lain) */
-static int do_register(const char* name, const char* help, cli_handler_t fn, int core, int max_args) {
+static int do_register(const char* name, const char* help, cli_handler_t fn,
+                       int core, int max_args, int root_only) {
     if (cmd_count >= CLI_MAX_CMDS) return -1;
     cmds[cmd_count].name = name;
     cmds[cmd_count].help = help;
     cmds[cmd_count].fn   = fn;
     cmds[cmd_count].core = core;
     cmds[cmd_count].max_args = max_args;
+    cmds[cmd_count].root_only = root_only;
     cmd_count++;
     return 0;
 }
 
 int cli_register(const char* name, const char* help, cli_handler_t fn) {
-    return do_register(name, help, fn, 0, 0);          /* tanpa argumen */
+    return do_register(name, help, fn, 0, 0, 0);          /* tanpa argumen */
 }
 
 int cli_register_core(const char* name, const char* help, cli_handler_t fn) {
-    return do_register(name, help, fn, 1, 0);          /* tanpa argumen */
+    return do_register(name, help, fn, 1, 0, 0);          /* tanpa argumen */
 }
 
 int cli_register_args(const char* name, const char* help, cli_handler_t fn, int max_args) {
-    return do_register(name, help, fn, 0, max_args);
+    return do_register(name, help, fn, 0, max_args, 0);
+}
+
+int cli_register_root(const char* name, const char* help, cli_handler_t fn, int max_args) {
+    return do_register(name, help, fn, 0, max_args, 1);
 }
 
 int cli_count(void) { return cmd_count; }
@@ -191,64 +197,43 @@ void cli_read_password(char* buf, int max) {
     buf[len] = '\0';
 }
 
-/* ---- Perintah bawaan: su, exit, passwd ---- */
-static void cmd_su(int argc, char** argv) {
-    (void)argc; (void)argv;
-    if (shell_root) {
-        kprintf("Sudah dalam mode root.\n");
+// 3) Hapus cmd_su, cmd_exit_root, cmd_passwd lama. Ganti dengan:
+static void cmd_login(int argc, char** argv) {
+    if (shell_root) { kprintf("Sudah login sebagai admin.\n"); return; }
+    if (argc == 2 && kstrcmp(argv[1], "admin") != 0) {
+        kprintf("login: pengguna '%s' tidak dikenal. Gunakan: login admin\n", argv[1]);
         return;
     }
     char pw[32];
-    kprintf("Password: ");
+    kprintf("Password admin: ");
     cli_read_password(pw, 32);
-    if (pw[0] == '\0') return;                  /* Ctrl+C / kosong */
-
+    if (pw[0] == '\0') return;
     if (protect_request_root(pw) == E_OK) {
         shell_root = 1;
-        kprintf("root: akses diterima.\n");
+        kprintf("Login berhasil. Fitur admin aktif (ketik 'help').\n");
     } else {
-        kprintf("su: password salah.\n");
+        kprintf("login: password salah.\n");
     }
 }
 
-static void cmd_exit_root(int argc, char** argv) {
+static void cmd_logout(int argc, char** argv) {
     (void)argc; (void)argv;
-    if (!shell_root) {
-        kprintf("Sudah dalam mode user.\n");
-        return;
-    }
+    if (!shell_root) { kprintf("Anda sudah dalam mode guest.\n"); return; }
     protect_drop_root();
     shell_root = 0;
-    kprintf("Kembali ke mode user.\n");
+    kprintf("Logout. Kembali ke mode guest.\n");
 }
 
+/* passwd sekarang root_only, jadi cek "if (!shell_root)" di dalamnya dihapus */
 static void cmd_passwd(int argc, char** argv) {
     (void)argc; (void)argv;
-    if (!shell_root) {
-        kprintf("passwd: harus dalam mode root. Ketik 'su' terlebih dahulu.\n");
-        return;
-    }
     char old_pw[32], new_pw[32], confirm[32];
-    kprintf("Password lama: ");
-    cli_read_password(old_pw, 32);
-    if (old_pw[0] == '\0') return;
-    kprintf("Password baru: ");
-    cli_read_password(new_pw, 32);
-    if (new_pw[0] == '\0') return;
-    kprintf("Konfirmasi password baru: ");
-    cli_read_password(confirm, 32);
-    if (confirm[0] == '\0') return;
-
-    /* Cek konfirmasi */
-    if (kstrcmp(new_pw, confirm) != 0) {
-        kprintf("passwd: konfirmasi tidak cocok.\n");
-        return;
-    }
-    if (protect_change_password(old_pw, new_pw) == E_OK) {
-        kprintf("passwd: password berhasil diganti.\n");
-    } else {
-        kprintf("passwd: password lama salah.\n");
-    }
+    kprintf("Password lama: ");       cli_read_password(old_pw, 32);  if (old_pw[0] == '\0') return;
+    kprintf("Password baru: ");       cli_read_password(new_pw, 32);  if (new_pw[0] == '\0') return;
+    kprintf("Konfirmasi password baru: "); cli_read_password(confirm, 32); if (confirm[0] == '\0') return;
+    if (kstrcmp(new_pw, confirm) != 0) { kprintf("passwd: konfirmasi tidak cocok.\n"); return; }
+    if (protect_change_password(old_pw, new_pw) == E_OK) kprintf("passwd: password berhasil diganti.\n");
+    else                                                  kprintf("passwd: password lama salah.\n");
 }
 
 /* 3. Pecah "cat a.txt" jadi argv = {"cat", "a.txt"}.
@@ -276,10 +261,9 @@ void cli_run(void) {
     shell_root = 0;
 
     for (;;) {
-        if (shell_root)
-            kprintf("root@kylin> ");
-        else
-            kprintf("user@kylin> ");
+        if (shell_root) kprintf("admin@task> ");
+        else            
+        kprintf("kiosk@task> ");
         read_line(line, CLI_BUF_SIZE);
         hist_add(line);                   /* simpan dulu, sebelum parse merusak isi line */
         int argc = parse(line, argv);
@@ -289,10 +273,9 @@ void cli_run(void) {
         int found = 0;
         for (int i = 0; i < cmd_count; i++) {
             if (kstrcmp(argv[0], cmds[i].name) == 0) {
-                int max = cmds[i].max_args;
-                if (max >= 0 && argc - 1 > max) {          /* argumen berlebih: tolak, jangan jalankan */
-                    if (max == 0) kprintf("%s: this command takes no arguments\n", argv[0]);
-                    else          kprintf("%s: too many arguments (max %d)\n", argv[0], max);
+                if (cmds[i].root_only && !shell_root) {
+                    kprintf("Akses Ditolak: Hanya Admin yang dapat menjalankan '%s'.\n", argv[0]);
+                    kprintf("Ketik 'login' untuk masuk sebagai admin.\n");
                     found = 1;
                     break;
                 }
@@ -307,13 +290,13 @@ void cli_run(void) {
     }
 }
 
+// 5) cli_init: ganti seluruh isinya
 void cli_init(void) {
     cmd_info_init();
+    cmd_todo_init();
     cmd_system_init();
-    cmd_vfs_init();
-
-    /* Perintah proteksi: su / exit / passwd */
-    cli_register("su",     "masuk ke mode root (memerlukan password)", cmd_su);
-    cli_register("exit",   "keluar dari mode root, kembali ke user",  cmd_exit_root);
-    cli_register("passwd", "ganti password root (harus mode root)",   cmd_passwd);
+    cmd_diag_init();
+    cli_register_args("login", "masuk sebagai admin (butuh password)", cmd_login, 1);
+    cli_register     ("logout","keluar dari admin, kembali jadi guest", cmd_logout);
+    cli_register_root("passwd","ganti password admin",                  cmd_passwd, 0);
 }

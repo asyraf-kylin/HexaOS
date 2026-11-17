@@ -178,6 +178,23 @@ size_t kstrlen(const char* s) {
     return n;
 }
 
+void kputs_pad(const char* s, int width) {
+    int n = 0;
+    while (s[n]) { kputc(s[n]); n++; }
+    for (; n < width; n++) kputc(' ');
+}
+
+size_t kjoin_args(int argc, char** argv, int from, char* out, size_t max) {
+    size_t n = 0;
+    if (max == 0) return 0;
+    for (int i = from; i < argc; i++) {
+        if (i > from && n < max - 1) out[n++] = ' ';
+        for (const char* p = argv[i]; *p && n < max - 1; p++) out[n++] = *p;
+    }
+    out[n] = '\0';
+    return n;
+}
+
 int kstrcmp(const char* a, const char* b) {
     while (*a && *a == *b) { a++; b++; }
     return (int)(uint8_t)*a - (int)(uint8_t)*b;

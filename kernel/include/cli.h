@@ -1,46 +1,39 @@
 #ifndef CLI_H
 #define CLI_H
 
-#define CLI_MAX_CMDS   32
+#define CLI_MAX_CMDS   48
 #define CLI_BUF_SIZE   128
-#define CLI_MAX_ARGS   8
+#define CLI_MAX_ARGS   64      /* 127 karakter / 2 = maksimum 64 kata per baris */
 
-/* Tipe fungsi perintah: terima jumlah argumen + daftar argumen */
 typedef void (*cli_handler_t)(int argc, char** argv);
 
-/* Satu entri perintah */
 typedef struct {
-    const char*    name;   // "ls", "memtest", ...
-    const char*    help;   // deskripsi singkat untuk perintah `help`
+    const char*    name;
+    const char*    help;
     cli_handler_t  fn;
-    int            core;    // 1 = perintah inti (ditampilkan paling atas di `help`)
-    int            max_args; // jumlah argumen maksimum setelah nama perintah (-1 = bebas)
+    int            core;
+    int            max_args;   /* -1 = bebas */
+    int            root_only;  /* 1 = hanya admin; dicek SATU tempat di cli_run */
 } cli_cmd_t;
 
-/* Dipanggil dari main.c */
 void cli_init(void);
-void cli_run(void);        // loop utama: baca input, parse, jalankan
+void cli_run(void);
+void todo_board_show(void);    /* cmd_todo.c, dipakai main.c saat boot */
 
-/* Cek apakah shell sedang dalam mode root */
 int  cli_is_root(void);
-
-/* Baca password dari keyboard (tanpa echo, tampilkan '*') */
 void cli_read_password(char* buf, int max);
 
-/* Dipanggil dari modul lain untuk mendaftarkan perintahnya */
-/* cli_register / cli_register_core: perintah TANPA argumen. Kalau pengguna mengetik
-   argumen tambahan (mis. "help xyz"), shell menolaknya dengan pesan error.
-   cli_register_args: perintah yang menerima sampai max_args argumen (mis. "cat a.txt" -> 1). */
 int  cli_register(const char* name, const char* help, cli_handler_t fn);
 int  cli_register_core(const char* name, const char* help, cli_handler_t fn);
 int  cli_register_args(const char* name, const char* help, cli_handler_t fn, int max_args);
-/* Akses daftar perintah (dipakai cmd_help) */
+int  cli_register_root(const char* name, const char* help, cli_handler_t fn, int max_args);
+
 int                cli_count(void);
 const cli_cmd_t*   cli_get(int i);
 
-/* Init tiap grup perintah (folder kernel/cmd), dipanggil dari cli_init() */
 void cmd_system_init(void);
 void cmd_info_init(void);
-void cmd_vfs_init(void);
+void cmd_todo_init(void);
+void cmd_diag_init(void);
 
 #endif

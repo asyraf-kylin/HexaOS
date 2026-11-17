@@ -123,6 +123,8 @@ void print_authors(void);     /* unjuk author*/
 /* ---- String & memori dasar (tidak ada libc di kernel) ---- */
 int    kstrcmp(const char* a, const char* b);
 size_t kstrlen(const char* s);
+void   kputs_pad(const char* s, int width);   /* kputs + spasi sampai lebar width */
+size_t kjoin_args(int argc, char** argv, int from, char* out, size_t max);  /* gabung argumen jadi satu kalimat */
 void*  memset(void* dst, int c, size_t n);
 void*  memcpy(void* dst, const void* src, size_t n);
 void*  memmove(void* dst, const void* src, size_t n);

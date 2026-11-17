@@ -1,45 +1,40 @@
-/* cmd_system.c - perintah sistem: clear, reboot, shutdown, int3 */
 #include "cli.h"
 #include "kernel.h"
-#include "protect.h"
+#include "memory.h"
+#include "task.h"
+#include "todo.h"
+#include "svc.h"
 
-static void cmd_clear(int argc, char** argv) {
+static void cmd_clear(int argc, char** argv) { (void)argc; (void)argv; vga_clear(); }
+
+static void cmd_sysinfo(int argc, char** argv) {
     (void)argc; (void)argv;
-    vga_clear();
+    int active, done;
+    todo_get_counts(&active, &done);
+    kprintf("=== SYSINFO ===\n");
+    kprintf("Uptime : %u detik\n", (unsigned)(timer_ticks() / TIMER_HZ));
+    kprintf("Heap   : terpakai %u B, tersedia %u B\n",
+            (unsigned)memory_get_used(), (unsigned)memory_get_free());
+    kprintf("Tugas  : aktif %d, selesai %d\n", active, done);
+    kprintf("\n[Thread]\n");
+    task_dump();
+    kprintf("\n[Log sinkronisasi]\n");
+    synclog_dump();
 }
 
 static void cmd_reboot(int argc, char** argv) {
     (void)argc; (void)argv;
-    if (!cli_is_root()) {
-        kprintf("reboot: Akses ditolak. Harus dalam mode root.\n");
-        kprintf("        Ketik 'su' untuk masuk ke mode root.\n");
-        return;
-    }
-    kprintf("Rebooting...\n");
-    kdelay_ms(300);
-    system_reboot();
+    kprintf("Rebooting...\n"); kdelay_ms(300); system_reboot();
 }
 
 static void cmd_shutdown(int argc, char** argv) {
     (void)argc; (void)argv;
-    if (!cli_is_root()) {
-        kprintf("shutdown: Akses ditolak. Harus dalam mode root.\n");
-        kprintf("          Ketik 'su' untuk masuk ke mode root.\n");
-        return;
-    }
-    kprintf("Shutting down...\n");
-    kdelay_ms(300);
-    system_shutdown();
-}
-
-static void cmd_int3(int argc, char** argv) {
-    (void)argc; (void)argv;
-    __asm__ volatile("int3");
+    kprintf("Shutting down...\n"); kdelay_ms(300); system_shutdown();
 }
 
 void cmd_system_init(void) {
-    cli_register("clear",    "clear the screen",              cmd_clear);
-    cli_register("reboot",   "reboot the system",             cmd_reboot);
-    cli_register("shutdown", "shut down the system",          cmd_shutdown);
-    cli_register("int3",     "test interrupt (breakpoint)",   cmd_int3);
+    cli_register     ("clear",    "bersihkan layar",             cmd_clear);
+    cli_register_root("sysinfo",  "status OS: RAM, thread, log", cmd_sysinfo,  0);
+    cli_register_root("reboot",   "restart sistem",              cmd_reboot,   0);
+    cli_register_root("shutdown", "matikan sistem",              cmd_shutdown, 0);
 }
