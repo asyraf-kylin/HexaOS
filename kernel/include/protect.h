@@ -40,4 +40,7 @@ void    protect_drop_root(void);                      /* kembali PRIV_USER */
 /* Ganti password: hanya boleh saat thread sedang mode root */
 int32_t protect_change_password(const char *old_pw, const char *new_pw);
 
+void protect_test_begin(void);
+void protect_test_end(void);
+
 #endif

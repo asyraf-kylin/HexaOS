@@ -316,7 +316,7 @@ static void user_thread(void *arg)
 
 void test_protect(void)
 {
-    protect_init();
+    protect_test_begin();
 
     /*
      * Sesuaikan alamat region kernel dengan linker script
@@ -348,4 +348,6 @@ void test_protect(void)
     while (!prot_done) {
         task_yield();
     }
+
+    protect_test_end();
 }

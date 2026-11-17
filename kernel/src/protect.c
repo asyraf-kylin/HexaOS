@@ -1,3 +1,4 @@
+
 /*
  * protect.c - Proteksi hak akses HexaOS (pemisahan user mode & kernel mode)
  *
@@ -11,10 +12,11 @@
  *   Membutuhkan GDT dengan segmen ring 3 (0x1B kode, 0x23 data) dan TSS
  *   (esp0) yang diset oleh bagian GDT/boot.
  */
+
 #include "kernel.h"
 #include "protect.h"
-#include "task.h"      /* task_current(), task_t (milik Anggota 2) */
-#include "kernel.h"    /* kprintf -- sesuaikan kalau deklarasinya ada di header lain */
+#include "task.h"
+#include "kernel.h"
 
 /* ID thread yang sedang berjalan */
 static int32_t cur_id(void)
@@ -28,7 +30,7 @@ static int32_t cur_id(void)
 
 typedef struct {
     uint32_t    start;
-    uint32_t    end;      /* eksklusif */
+    uint32_t    end;
     uint32_t    flags;
     const char *name;
     bool        used;
@@ -37,10 +39,15 @@ typedef struct {
 #define PW_MAX          32
 #define DEFAULT_ROOT_PW "root"
 
-static uint32_t root_pw_hash;           /* hash password root (djb2) */
+static uint32_t root_pw_hash;
 static uint32_t hash_str(const char *s);
 static mem_region_t regions[MAX_REGIONS];
-static priv_t       thread_priv[MAX_THREADS];
+static priv_t thread_priv[MAX_THREADS];
+
+/* Menyimpan kondisi proteksi sebelum pengujian */
+static mem_region_t saved_regions[MAX_REGIONS];
+static priv_t saved_priv[MAX_THREADS];
+static uint32_t saved_hash;
 
 void protect_init(void)
 {
@@ -49,9 +56,40 @@ void protect_init(void)
     root_pw_hash = hash_str(DEFAULT_ROOT_PW);
 }
 
+/* Memulai pengujian proteksi */
+void protect_test_begin(void)
+{
+    for (int i = 0; i < MAX_THREADS; i++) {
+        saved_priv[i] = thread_priv[i];
+    }
+
+    for (int i = 0; i < MAX_REGIONS; i++) {
+        saved_regions[i] = regions[i];
+        regions[i].used = false;
+    }
+
+    saved_hash = root_pw_hash;
+    root_pw_hash = hash_str(DEFAULT_ROOT_PW);
+}
+
+/* Mengembalikan kondisi proteksi setelah pengujian */
+void protect_test_end(void)
+{
+    for (int i = 0; i < MAX_THREADS; i++) {
+        thread_priv[i] = saved_priv[i];
+    }
+
+    for (int i = 0; i < MAX_REGIONS; i++) {
+        regions[i] = saved_regions[i];
+    }
+
+    root_pw_hash = saved_hash;
+}
+
 bool protect_add_region(uint32_t start, uint32_t size, uint32_t flags, const char *name)
 {
-    if (size == 0 || start + size < start) return false;   /* overflow */
+    if (size == 0 || start + size < start) return false;
+
     for (int i = 0; i < MAX_REGIONS; i++) {
         if (!regions[i].used) {
             regions[i].start = start;
@@ -73,41 +111,38 @@ void protect_set_priv(int32_t tid, priv_t p)
 priv_t protect_get_priv(int32_t tid)
 {
     if (tid >= 0 && tid < MAX_THREADS) return thread_priv[tid];
-    return PRIV_USER;           /* ID tak dikenal: perlakukan paling terbatas */
+    return PRIV_USER;
 }
 
 /* Seluruh [addr, addr+len) harus berada di dalam satu region yang mengizinkan */
 bool protect_check(priv_t who, uint32_t addr, uint32_t len, uint32_t access)
 {
     if (len == 0) return true;
+
     uint32_t end = addr + len;
-    if (end < addr) return false;                           /* overflow */
+    if (end < addr) return false;
 
     for (int i = 0; i < MAX_REGIONS; i++) {
         mem_region_t *r = &regions[i];
         if (!r->used || addr < r->start || end > r->end) continue;
 
-        /* user mode hanya boleh memakai region ber-flag PERM_USER */
         if (who == PRIV_USER && !(r->flags & PERM_USER)) continue;
         if ((r->flags & access) == access) return true;
     }
-    return false;                                           /* tidak ada region yang mengizinkan */
+    return false;
 }
 
 bool protect_require_kernel(const char *op)
 {
     if (protect_get_priv(cur_id()) == PRIV_KERNEL) return true;
+
     kprintf("[protect] DITOLAK: thread %d (user) mencoba operasi kernel '%s'\n",
             cur_id(), op);
     return false;
 }
 
+/* --------------------- Password mode root (simulasi) --------------------- */
 
-/* --------------------- Password mode root (simulasi) ---------------------
- * Password TIDAK disimpan sebagai teks, hanya hash djb2 (sederhana).
- * Password awal: "root" (ganti lewat protect_change_password saat mode root).
- * Catatan: ini simulasi untuk tugas kuliah, bukan keamanan sungguhan.
- */
 static uint32_t hash_str(const char *s)
 {
     uint32_t h = 5381;
@@ -118,10 +153,12 @@ static uint32_t hash_str(const char *s)
 int32_t protect_request_root(const char *password)
 {
     int32_t tid = cur_id();
+
     if (hash_str(password) != root_pw_hash) {
         kprintf("[protect] password root SALAH untuk thread %d\n", tid);
         return E_PERM;
     }
+
     protect_set_priv(tid, PRIV_KERNEL);
     kprintf("[protect] thread %d naik ke mode root (kernel)\n", tid);
     return E_OK;
@@ -136,12 +173,15 @@ void protect_drop_root(void)
 
 int32_t protect_change_password(const char *old_pw, const char *new_pw)
 {
-    if (!protect_require_kernel("ganti password")) return E_PERM;   /* hanya mode root */
+    if (!protect_require_kernel("ganti password")) return E_PERM;
+
     if (hash_str(old_pw) != root_pw_hash) {
         kprintf("[protect] ganti password ditolak: password lama salah\n");
         return E_PERM;
     }
-    if (new_pw[0] == '\0') return E_FAULT;                          /* password kosong */
+
+    if (new_pw[0] == '\0') return E_FAULT;
+
     root_pw_hash = hash_str(new_pw);
     kprintf("[protect] password root berhasil diganti\n");
     return E_OK;
@@ -152,27 +192,30 @@ static bool copy_user_str(priv_t who, uint32_t addr, char *out, uint32_t max)
 {
     for (uint32_t i = 0; i < max; i++) {
         if (!protect_check(who, addr + i, 1, PERM_R)) return false;
+
         out[i] = *(const volatile char *)(addr + i);
         if (out[i] == '\0') return true;
     }
-    return false;                                                   /* terlalu panjang */
+    return false;
 }
 
 /* ----------------------------- Syscall ----------------------------- */
 int32_t protect_syscall(uint32_t num, uint32_t a1, uint32_t a2)
 {
-    int32_t tid  = cur_id();
-    priv_t  priv = protect_get_priv(tid);
+    int32_t tid = cur_id();
+    priv_t priv = protect_get_priv(tid);
 
     switch (num) {
     case SYS_GETPID:
         return tid;
 
-    case SYS_WRITE: {                       /* a1 = buffer, a2 = panjang */
+    case SYS_WRITE: {
         if (!protect_check(priv, a1, a2, PERM_R)) {
-            kprintf("[protect] SYS_WRITE ditolak: buffer 0x%x (%u byte) tidak valid\n", a1, a2);
+            kprintf("[protect] SYS_WRITE ditolak: buffer 0x%x (%u byte) tidak valid\n",
+                    a1, a2);
             return E_FAULT;
         }
+
         const char *p = (const char *)a1;
         for (uint32_t i = 0; i < a2; i++) kprintf("%c", p[i]);
         return (int32_t)a2;
@@ -182,22 +225,25 @@ int32_t protect_syscall(uint32_t num, uint32_t a1, uint32_t a2)
         kprintf("[protect] thread %d keluar (kode %d)\n", tid, (int32_t)a1);
         return E_OK;
 
-    case SYS_REBOOT:                        /* khusus kernel */
+    case SYS_REBOOT:
         if (!protect_require_kernel("reboot")) return E_PERM;
+
         kprintf("[protect] reboot diizinkan untuk thread kernel %d\n", tid);
         return E_OK;
 
-    case SYS_SU: {                          /* a1 = ptr password */
+    case SYS_SU: {
         char pw[PW_MAX];
         if (!copy_user_str(priv, a1, pw, PW_MAX)) return E_FAULT;
         return protect_request_root(pw);
     }
 
-    case SYS_SETPW: {                       /* a1 = ptr lama, a2 = ptr baru */
+    case SYS_SETPW: {
         char old_pw[PW_MAX], new_pw[PW_MAX];
-        if (!protect_require_kernel("ganti password")) return E_PERM;   /* cek mode dulu */
+
+        if (!protect_require_kernel("ganti password")) return E_PERM;
         if (!copy_user_str(priv, a1, old_pw, PW_MAX)) return E_FAULT;
         if (!copy_user_str(priv, a2, new_pw, PW_MAX)) return E_FAULT;
+
         return protect_change_password(old_pw, new_pw);
     }
 
@@ -212,20 +258,21 @@ int32_t protect_syscall(uint32_t num, uint32_t a1, uint32_t a2)
 
 /* --------------------- Level 2: hardware ring 3 --------------------- */
 #ifdef HEXAOS_HW_RING3
-/* Masuk ke user mode lewat iret. Selector: 0x1B = kode ring3, 0x23 = data ring3 */
+
 void enter_user_mode(uint32_t entry, uint32_t user_stack)
 {
     __asm__ volatile(
         "cli\n"
         "movw $0x23, %%ax\n"
         "movw %%ax, %%ds\n movw %%ax, %%es\n movw %%ax, %%fs\n movw %%ax, %%gs\n"
-        "pushl $0x23\n"          /* SS  */
-        "pushl %0\n"             /* ESP */
+        "pushl $0x23\n"
+        "pushl %0\n"
         "pushfl\n"
-        "orl $0x200, (%%esp)\n"  /* EFLAGS: IF=1 */
-        "pushl $0x1B\n"          /* CS  */
-        "pushl %1\n"             /* EIP */
+        "orl $0x200, (%%esp)\n"
+        "pushl $0x1B\n"
+        "pushl %1\n"
         "iret\n"
         : : "r"(user_stack), "r"(entry) : "eax", "memory");
 }
+
 #endif
