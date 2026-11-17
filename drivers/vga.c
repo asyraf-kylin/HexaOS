@@ -106,6 +106,25 @@ void vga_init(void) {
     vga_clear();
 }
 
+void vga_redraw(void) {
+    uint32_t f = irq_off();
+    render();
+    update_cursor();
+    irq_back(f);
+}
+
+void vga_write_overlay(int x, int y, const char* str, uint8_t attr) {
+    if (y < 0 || y >= VGA_H) return;
+    int cur_x = x;
+    while (*str && cur_x < VGA_W) {
+        if (cur_x >= 0) {
+            vga_mem[y * VGA_W + cur_x] = (uint16_t)(uint8_t)(*str) | ((uint16_t)attr << 8);
+        }
+        cur_x++;
+        str++;
+    }
+}
+
 void vga_putc(char c) {
     if (view) { view = 0; render(); }        /* ada output baru: kembali ke layar live */
     switch (c) {

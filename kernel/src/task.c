@@ -204,6 +204,30 @@ void task_dump(void) {
     }
 }
 
+int task_get_info(int idx, uint32_t* id, char* name, int max_name, task_state_t* state, uint32_t* cpu_ticks, uint32_t* switches) {
+    if (idx < 0 || idx >= TASK_MAX) return 0;
+    uint32_t f = irq_save();
+    task_t* t = &tasks[idx];
+    if (t->state == TASK_UNUSED) {
+        irq_restore(f);
+        return 0;
+    }
+    if (id) *id = t->id;
+    if (name && max_name > 0) {
+        int i = 0;
+        while (t->name[i] && i < max_name - 1) {
+            name[i] = t->name[i];
+            i++;
+        }
+        name[i] = '\0';
+    }
+    if (state) *state = t->state;
+    if (cpu_ticks) *cpu_ticks = t->cpu_ticks;
+    if (switches) *switches = t->switches;
+    irq_restore(f);
+    return 1;
+}
+
 static void idle_entry(void* arg) {
     for (;;) __asm__ volatile("hlt");
 }
@@ -314,6 +338,14 @@ static void cmd_demo_preempt(int argc, char** argv) {
     kputc('\n');
     kprintf("giliran A=%u, B=%u (ganti tiap %d tick = %d ms)\n",
             a->switches, b->switches, TASK_QUANTUM, TASK_QUANTUM * 1000 / TIMER_HZ);
+}
+
+void test_threads(void) {
+    cmd_demo_thread(0, NULL);
+}
+
+void test_preempt(void) {
+    cmd_demo_preempt(0, NULL);
 }
 
 /* ---------- init ---------- */

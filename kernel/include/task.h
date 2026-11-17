@@ -49,6 +49,7 @@ void        task_kill(task_t* t);                              /* paksa thread l
 task_t*     task_current(void);
 const char* task_state_name(task_state_t s);
 void        task_dump(void);                                   /* cetak tabel thread */
+int         task_get_info(int idx, uint32_t* id, char* name, int max_name, task_state_t* state, uint32_t* cpu_ticks, uint32_t* switches);
 void        task_tick(void);                                   /* dipanggil timer tiap tick */
  
 /* ---- Timer (drivers/timer.c) ---- */

@@ -22,6 +22,8 @@ void todo_board_show(void);    /* cmd_todo.c, dipakai main.c saat boot */
 
 int  cli_is_root(void);
 void cli_read_password(char* buf, int max);
+void cli_hud_toggle(void);
+int  cli_hud_is_active(void);
 
 int  cli_register(const char* name, const char* help, cli_handler_t fn);
 int  cli_register_core(const char* name, const char* help, cli_handler_t fn);

@@ -2,6 +2,7 @@
 #include "kernel.h"
 #include "protect.h"
 #include "task.h"
+#include "memory.h"
 
 /* Mode root shell: 0 = user biasa, 1 = root */
 static int shell_root = 0;
@@ -45,6 +46,164 @@ int cli_count(void) { return cmd_count; }
 
 const cli_cmd_t* cli_get(int i) {
     return (i >= 0 && i < cmd_count) ? &cmds[i] : NULL;
+}
+
+/* -------------------------------------------------------------
+ * Task Monitor HUD (Pojok Kanan Bawah, khusus Root)
+ * ------------------------------------------------------------- */
+#define HUD_W 36
+#define HUD_H 10
+#define HUD_X (80 - HUD_W)
+#define HUD_Y (25 - HUD_H)
+
+static int hud_active = 0;
+
+static const char* hud_state_name(task_state_t s) {
+    switch (s) {
+    case TASK_NEW:        return "NEW";
+    case TASK_READY:      return "RDY";
+    case TASK_RUNNING:    return "RUN";
+    case TASK_WAITING:    return "WAIT";
+    case TASK_TERMINATED: return "TERM";
+    default:              return "-";
+    }
+}
+
+static void hud_pad(char* dst, const char* src, int width) {
+    int i = 0;
+    while (src[i] && i < width) { dst[i] = src[i]; i++; }
+    for (; i < width; i++) dst[i] = ' ';
+    dst[width] = '\0';
+}
+
+static void hud_fmt_u(uint32_t val, char* buf, int max) {
+    if (max <= 1) { if (max == 1) buf[0] = '\0'; return; }
+    char tmp[16];
+    int t = 0;
+    if (val == 0) tmp[t++] = '0';
+    else {
+        while (val > 0 && t < 15) {
+            tmp[t++] = '0' + (val % 10);
+            val /= 10;
+        }
+    }
+    int b = 0;
+    while (t > 0 && b < max - 1) buf[b++] = tmp[--t];
+    buf[b] = '\0';
+}
+
+static void hud_render(void) {
+    if (!hud_active || !shell_root) return;
+
+    uint8_t border_attr = (VGA_BLUE << 4) | VGA_WHITE;
+    uint8_t text_attr   = (VGA_BLUE << 4) | VGA_LIGHT_CYAN;
+    uint8_t val_attr    = (VGA_BLUE << 4) | VGA_YELLOW;
+    uint8_t stat_attr   = (VGA_BLUE << 4) | VGA_WHITE;
+
+    char line[HUD_W + 1];
+
+    // Baris 0: Header
+    for (int i = 0; i < HUD_W; i++) line[i] = ' ';
+    const char* title = " [ROOT HUD: TASK & SYS MONITOR] ";
+    int tlen = kstrlen(title);
+    int toff = (HUD_W - tlen) / 2;
+    for (int i = 0; i < tlen && (toff + i) < HUD_W; i++) line[toff + i] = title[i];
+    line[HUD_W] = '\0';
+    vga_write_overlay(HUD_X, HUD_Y + 0, line, border_attr);
+
+    // Baris 1: Kolom Header Tabel Thread
+    for (int i = 0; i < HUD_W; i++) line[i] = ' ';
+    const char* col_hdr = " ID  NAME        STATE   CPU    SW";
+    for (int i = 0; col_hdr[i] && i < HUD_W; i++) line[i] = col_hdr[i];
+    line[HUD_W] = '\0';
+    vga_write_overlay(HUD_X, HUD_Y + 1, line, val_attr);
+
+    // Baris 2..6: Daftar Task / Thread (5 baris)
+    for (int row = 0; row < 5; row++) {
+        for (int i = 0; i < HUD_W; i++) line[i] = ' ';
+        line[HUD_W] = '\0';
+
+        uint32_t tid = 0, cpu = 0, sw = 0;
+        char name[16];
+        task_state_t state = TASK_UNUSED;
+        if (task_get_info(row, &tid, name, sizeof(name), &state, &cpu, &sw)) {
+            char num_buf[16];
+            // ID
+            hud_fmt_u(tid, num_buf, sizeof(num_buf));
+            line[1] = ' '; line[2] = (num_buf[1]) ? num_buf[0] : ' ';
+            line[3] = (num_buf[1]) ? num_buf[1] : num_buf[0];
+
+            // Name (8 char)
+            char npad[9];
+            hud_pad(npad, name, 8);
+            for (int k = 0; k < 8; k++) line[5 + k] = npad[k];
+
+            // State (4 char)
+            char spad[5];
+            hud_pad(spad, hud_state_name(state), 4);
+            for (int k = 0; k < 4; k++) line[17 + k] = spad[k];
+
+            // CPU ticks (5 char)
+            char cpubuf[16], cpad[6];
+            hud_fmt_u(cpu, cpubuf, sizeof(cpubuf));
+            hud_pad(cpad, cpubuf, 5);
+            for (int k = 0; k < 5; k++) line[24 + k] = cpad[k];
+
+            // Switches (4 char)
+            char swbuf[16], swpad[5];
+            hud_fmt_u(sw, swbuf, sizeof(swbuf));
+            hud_pad(swpad, swbuf, 4);
+            for (int k = 0; k < 4; k++) line[31 + k] = swpad[k];
+
+            vga_write_overlay(HUD_X, HUD_Y + 2 + row, line, text_attr);
+        } else {
+            const char* empty_slot = "  -  (slot kosong)                 ";
+            for (int k = 0; empty_slot[k] && k < HUD_W; k++) line[k] = empty_slot[k];
+            vga_write_overlay(HUD_X, HUD_Y + 2 + row, line, (VGA_BLUE << 4) | VGA_DARK_GREY);
+        }
+    }
+
+    // Baris 7: Garis Pemisah
+    for (int i = 0; i < HUD_W; i++) line[i] = '-';
+    line[HUD_W] = '\0';
+    vga_write_overlay(HUD_X, HUD_Y + 7, line, border_attr);
+
+    // Baris 8: Info Heap
+    for (int i = 0; i < HUD_W; i++) line[i] = ' ';
+    const char* hlabel = " Heap: ";
+    int pos = 0;
+    while (hlabel[pos]) { line[pos] = hlabel[pos]; pos++; }
+    char ubuf[16], fbuf[16];
+    hud_fmt_u((uint32_t)memory_get_used(), ubuf, sizeof(ubuf));
+    hud_fmt_u((uint32_t)memory_get_free(), fbuf, sizeof(fbuf));
+    int u = 0; while (ubuf[u] && pos < HUD_W) line[pos++] = ubuf[u++];
+    const char* mid = "B used | ";
+    int m = 0; while (mid[m] && pos < HUD_W) line[pos++] = mid[m++];
+    int f = 0; while (fbuf[f] && pos < HUD_W) line[pos++] = fbuf[f++];
+    const char* end = "B free";
+    int e = 0; while (end[e] && pos < HUD_W) line[pos++] = end[e++];
+    line[HUD_W] = '\0';
+    vga_write_overlay(HUD_X, HUD_Y + 8, line, stat_attr);
+
+    // Baris 9: Footer / Petunjuk
+    for (int i = 0; i < HUD_W; i++) line[i] = ' ';
+    const char* foot = " [Tab]: Sembunyikan | Priv: ROOT ";
+    for (int i = 0; foot[i] && i < HUD_W; i++) line[i] = foot[i];
+    line[HUD_W] = '\0';
+    vga_write_overlay(HUD_X, HUD_Y + 9, line, val_attr);
+}
+
+void cli_hud_toggle(void) {
+    if (!shell_root) return;
+    hud_active = !hud_active;
+    vga_redraw();
+    if (hud_active) {
+        hud_render();
+    }
+}
+
+int cli_hud_is_active(void) {
+    return hud_active;
 }
 
 /* 2. Baca satu baris dari keyboard/serial, dengan echo + editing */
@@ -110,6 +269,13 @@ static void read_line(char* buf, int max) {
 
     for (;;) {
         char c = kgetc();
+
+        if (c == KEY_TAB) {
+            if (shell_root) {
+                cli_hud_toggle();
+            }
+            continue;
+        }
 
         if (c == '\r' || c == '\n') { kputc('\n'); break; }
 
@@ -219,6 +385,10 @@ static void cmd_login(int argc, char** argv) {
 static void cmd_logout(int argc, char** argv) {
     (void)argc; (void)argv;
     if (!shell_root) { kprintf("Anda sudah dalam mode guest.\n"); return; }
+    if (hud_active) {
+        hud_active = 0;
+        vga_redraw();
+    }
     protect_drop_root();
     shell_root = 0;
     kprintf("Logout. Kembali ke mode guest.\n");
@@ -261,8 +431,10 @@ void cli_run(void) {
     shell_root = 0;
 
     for (;;) {
-        if (shell_root) kprintf("admin@task> ");
-        else            
+        if (shell_root) {
+            hud_render();
+            kprintf("admin@task> ");
+        } else            
         kprintf("kiosk@task> ");
         read_line(line, CLI_BUF_SIZE);
         hist_add(line);                   /* simpan dulu, sebelum parse merusak isi line */

@@ -76,7 +76,7 @@ static char kbd_decode(uint8_t sc) {
         return 0;                         /* Ctrl+huruf lain: abaikan */
     }
 
-    if (c == '\t') c = ' ';               /* Tab dijadikan spasi */
+    if (c == '\t') return KEY_TAB;
     return c;
 }
 

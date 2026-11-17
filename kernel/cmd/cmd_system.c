@@ -32,8 +32,19 @@ static void cmd_shutdown(int argc, char** argv) {
     kprintf("Shutting down...\n"); kdelay_ms(300); system_shutdown();
 }
 
+static void cmd_hud(int argc, char** argv) {
+    (void)argc; (void)argv;
+    cli_hud_toggle();
+    if (cli_hud_is_active()) {
+        kprintf("Task Monitor HUD [AKTIF] di pojok kanan bawah layar.\n");
+    } else {
+        kprintf("Task Monitor HUD [NONAKTIF].\n");
+    }
+}
+
 void cmd_system_init(void) {
     cli_register     ("clear",    "bersihkan layar",             cmd_clear);
+    cli_register_root("hud",      "toggle task monitor HUD pojok kanan bawah (atau tombol Tab)", cmd_hud, 0);
     cli_register_root("sysinfo",  "status OS: RAM, thread, log", cmd_sysinfo,  0);
     cli_register_root("reboot",   "restart sistem",              cmd_reboot,   0);
     cli_register_root("shutdown", "matikan sistem",              cmd_shutdown, 0);

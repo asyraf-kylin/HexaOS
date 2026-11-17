@@ -72,6 +72,8 @@ void vga_putc(char c);
 void vga_set_color(uint8_t fg, uint8_t bg);
 void vga_scroll_view(int delta);  /* gulir riwayat: >0 ke atas, <0 ke bawah */
 void vga_scroll_reset(void);      /* kembali ke layar live */
+void vga_redraw(void);
+void vga_write_overlay(int x, int y, const char* str, uint8_t attr);
 
 /* ---- Serial COM1 (drivers/serial.c) ---- */
 void serial_init(void);
@@ -84,6 +86,7 @@ void keyboard_init(void);
 
 /* ---- Tombol khusus: dikembalikan kgetc() sebagai karakter kontrol ---- */
 #define KEY_CTRL_C  0x03   /* Ctrl+C */
+#define KEY_TAB     0x09   /* Tab */
 #define KEY_UP      0x1E   /* panah atas */
 #define KEY_DOWN    0x1F   /* panah bawah */
 #define KEY_LEFT    0x11   /* panah kiri */
