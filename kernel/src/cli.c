@@ -104,7 +104,7 @@ static void hud_render(void) {
 
     // Baris 0: Header
     for (int i = 0; i < HUD_W; i++) line[i] = ' ';
-    const char* title = " [ROOT HUD: TASK & SYS MONITOR] ";
+    const char* title = " [TASK & SYS MONITOR] ";
     int tlen = kstrlen(title);
     int toff = (HUD_W - tlen) / 2;
     for (int i = 0; i < tlen && (toff + i) < HUD_W; i++) line[toff + i] = title[i];
@@ -394,7 +394,7 @@ static void cmd_login(int argc, char** argv) {
 
 static void cmd_logout(int argc, char** argv) {
     (void)argc; (void)argv;
-    if (!shell_root) { kprintf("Anda sudah dalam mode guest.\n"); return; }
+    if (!shell_root) { kprintf("Anda sudah dalam mode kiosk.\n"); return; }
     if (hud_active) {
         hud_active = 0;
         vga_overlay_clear();
@@ -402,7 +402,7 @@ static void cmd_logout(int argc, char** argv) {
     }
     protect_drop_root();
     shell_root = 0;
-    kprintf("Logout. Kembali ke mode guest.\n");
+    kprintf("Logout. Kembali ke mode kiosk.\n");
 }
 
 /* passwd sekarang root_only, jadi cek "if (!shell_root)" di dalamnya dihapus */
@@ -444,9 +444,9 @@ void cli_run(void) {
     for (;;) {
         if (shell_root) {
             hud_render();
-            kprintf("admin@task> ");
-        } else            
-        kprintf("kiosk@task> ");
+            kprintf("admin@hexa> ");
+        } else
+        kprintf("kiosk@hexa> ");
         read_line(line, CLI_BUF_SIZE);
         hist_add(line);                   /* simpan dulu, sebelum parse merusak isi line */
         int argc = parse(line, argv);
@@ -480,6 +480,6 @@ void cli_init(void) {
     cmd_system_init();
     cmd_diag_init();
     cli_register_args("login", "masuk sebagai admin (butuh password)", cmd_login, 1);
-    cli_register     ("logout","keluar dari admin, kembali jadi guest", cmd_logout);
+    cli_register     ("logout","keluar dari admin, kembali ke kiosk", cmd_logout);
     cli_register_root("passwd","ganti password admin",                  cmd_passwd, 0);
 }

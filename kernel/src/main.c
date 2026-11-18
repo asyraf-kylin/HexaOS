@@ -1,5 +1,7 @@
 #include "kernel.h"
 #include "cli.h"
+#include "todo.h"
+#include "svc.h"
 
 #define BOOT_STEP_MS  350   
 #define BOOT_BAR_MS   60    
@@ -30,11 +32,13 @@ void kernel_main(void) {
 
     memory_init();   kdelay_ms(BOOT_STEP_MS);
     vfs_init();      kdelay_ms(BOOT_STEP_MS);
+    todo_init();     kdelay_ms(BOOT_STEP_MS);
     task_init();     kdelay_ms(BOOT_STEP_MS);
-    sync_init();     /* Anggota 3: mutex/semaphore + perintah demo */
+    sync_init();     /* Anggota 3: mutex */
     protect_init();  /* Anggota 3: hak akses */
     
     interrupts_enable();
+    summary_start();  /* worker rekap latar belakang (Anggota 2) */
     cli_init();
     kprintf("[ OK ] Command-line interface ready\n\n");
     boot_progress("Loading system");

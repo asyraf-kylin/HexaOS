@@ -7,6 +7,7 @@
 #include "kernel.h"
 #include "task.h"
 #include "cli.h"
+#include "svc.h"
 
 static task_t   tasks[TASK_MAX];
 static uint8_t  stacks[TASK_MAX][TASK_STACK_SIZE] __attribute__((aligned(16)));
@@ -235,8 +236,6 @@ static void idle_entry(void* arg) {
     for (;;) __asm__ volatile("hlt");
 }
 
-static void cmd_threads(int argc, char** argv) { task_dump(); }
-
 /* Dua thread dengan tugas BERBEDA, supaya perubahan statusnya terlihat. */
 static void thread_counter(void* arg) {
     for (int i = 1; i <= 3; i++) {
@@ -283,7 +282,7 @@ static void demo_abort(task_t* a, task_t* b) {
     kputs("\n^C\n");                        /* newline: prompt berikutnya di baris baru */
 }
 
-static void cmd_demo_thread(int argc, char** argv) {
+void test_threads(void) {
     reap_terminated();
     task_t* a = task_create("counter", thread_counter, NULL);
     task_t* b = task_create("greeter", thread_greeter, NULL);
@@ -327,7 +326,7 @@ static void spinner(void* arg) {
     }
 }
 
-static void cmd_demo_preempt(int argc, char** argv) {
+void test_preempt(void) {
     reap_terminated();
     kprintf("Dua thread loop tanpa yield, 1 huruf = 1 tick CPU (Ctrl+C = batal):\n");
     task_t* a = task_spawn("spin-A", spinner, (void*)'A');
@@ -341,14 +340,6 @@ static void cmd_demo_preempt(int argc, char** argv) {
     kputc('\n');
     kprintf("giliran A=%u, B=%u (ganti tiap %d tick = %d ms)\n",
             a->switches, b->switches, TASK_QUANTUM, TASK_QUANTUM * 1000 / TIMER_HZ);
-}
-
-void test_threads(void) {
-    cmd_demo_thread(0, NULL);
-}
-
-void test_preempt(void) {
-    cmd_demo_preempt(0, NULL);
 }
 
 /* ---------- init ---------- */
@@ -368,10 +359,6 @@ void task_init(void) {
     idle = task_spawn("idle", idle_entry, NULL);
 
     timer_init(TIMER_HZ, task_tick);
-
-    cli_register("threads",      "list all threads",     cmd_threads);
-    cli_register("demo-thread",  "demo thread status cycles",     cmd_demo_thread);
-    cli_register("demo-preempt", "demo preemption (without yield)", cmd_demo_preempt);
 
     kprintf("[ OK ] Scheduler Round Robin, kuantum %d ms\n", TASK_QUANTUM * 1000 / TIMER_HZ);
 }

@@ -9,7 +9,7 @@ void todo_board_show(void) {
     int n = todo_count();
 
     vga_set_color(VGA_YELLOW, VGA_BLACK);
-    kprintf("================== PAPAN TUGAS ==================\n");
+    kprintf("================== LIST TUGAS ==================\n");
     vga_set_color(VGA_LIGHT_GREY, VGA_BLACK);
 
     if (n == 0) {
@@ -68,7 +68,7 @@ static void cmd_add(int argc, char** argv) {
     char text[CLI_BUF_SIZE];
     if (read_text(argc, argv, 1, text, (int)sizeof(text)) != 0) return;
     int rc = todo_add(text);
-    if (rc > 0) { kprintf("Tugas #%d ditambahkan.\n", rc); todo_board_show(); }
+    if (rc > 0) { kprintf("Tugas #%d ditambahkan.\n", rc); }
     else        report(rc);
 }
 

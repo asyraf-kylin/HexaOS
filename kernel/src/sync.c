@@ -5,5 +5,5 @@
 
 void sync_init(void) {
     mutex_modul_init();
-    kprintf("[ OK ] Sync primitives: mutex & semaphore\n");
+    kprintf("[ OK ] Sync primitives: mutex & wait queue\n");
 }
