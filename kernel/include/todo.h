@@ -13,6 +13,7 @@
 void todo_init(void);
 int  todo_add(const char* text);            /* >0 = id baru, <0 = error */
 int  todo_done(int id);
+int  todo_undone(int id);                    /* [x] -> [ ] lagi */
 int  todo_edit(int id, const char* text);
 int  todo_del(int id);
 int  todo_purge_done(void);                 /* return jumlah yang dihapus */

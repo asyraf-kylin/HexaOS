@@ -13,6 +13,17 @@ static int cached_done = 0;
 // Deklarasi helper vfs_name_at dari vfs.c
 int vfs_name_at(int index, char *out, size_t max);
 
+/* Dipanggil dengan mutex_vfs masih terkunci. Kalau papan sudah kosong,
+   nomor tugas berikutnya mulai lagi dari 0. */
+static void reset_id_if_empty(void) {
+    char fname[32];
+    if (vfs_name_at(0, fname, sizeof(fname)) != 0) {
+        mutex_lock(&mutex_counter);
+        global_id_counter = 0;
+        mutex_unlock(&mutex_counter);
+    }
+}
+
 void todo_init(void) {
     mutex_init(&mutex_vfs, "vfs_lock");       // Berikan nama mutex
     mutex_init(&mutex_counter, "counter_lock"); // Berikan nama mutex
@@ -86,8 +97,8 @@ int todo_add(const char *text) {
 
     mutex_lock(&mutex_vfs);
     mutex_lock(&mutex_counter);
+    int new_id = global_id_counter;      /* tugas pertama bernomor 0 */
     global_id_counter++;
-    int new_id = global_id_counter;
     mutex_unlock(&mutex_counter);
     
     char filename[32];
@@ -153,6 +164,36 @@ int todo_done(int id) {
     return TODO_OK;
 }
 
+/* Kembalikan tugas yang sudah selesai ke status belum selesai. */
+int todo_undone(int id) {
+    mutex_lock(&mutex_vfs);
+    char fname[32];
+    make_todo_filename(id, fname, sizeof(fname));
+
+    char *content = vfs_read(fname);
+    if (!content) {
+        mutex_unlock(&mutex_vfs);
+        return TODO_ERR_NOID;
+    }
+
+    char buf[256];
+    int i = 0;
+    while (content[i] && i < (int)sizeof(buf) - 1) {
+        buf[i] = content[i];
+        i++;
+    }
+    buf[i] = '\0';
+
+    if (buf[1] == 'x' || buf[1] == 'X') {
+        buf[1] = ' ';
+        vfs_write(fname, buf);
+    }
+
+    mutex_unlock(&mutex_vfs);
+    todo_recount(&cached_active, &cached_done);
+    return TODO_OK;
+}
+
 int todo_edit(int id, const char *text) {
     if (!text || text[0] == '\0') return TODO_ERR_EMPTY;
 
@@ -192,6 +233,7 @@ int todo_del(int id) {
     make_todo_filename(id, fname, sizeof(fname));
     
     int res = vfs_delete(fname);
+    if (res == 0) reset_id_if_empty();
     mutex_unlock(&mutex_vfs);
     
     if (res < 0) return TODO_ERR_NOID;
@@ -217,6 +259,7 @@ int todo_purge_done(void) {
         }
         idx++;
     }
+    if (purged > 0) reset_id_if_empty();
     mutex_unlock(&mutex_vfs);
     
     todo_recount(&cached_active, &cached_done);

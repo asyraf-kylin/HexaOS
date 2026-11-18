@@ -50,7 +50,7 @@ static int parse_id(const char* s) {            /* "12" -> 12, selain itu -1 */
         v = v * 10 + (*s - '0');
         if (v > 999999) return -1;
     }
-    return v > 0 ? v : -1;
+    return v >= 0 ? v : -1;              /* nomor 0 juga valid */
 }
 
 static int read_text(int argc, char** argv, int from, char* out, int max) {
@@ -68,7 +68,7 @@ static void cmd_add(int argc, char** argv) {
     char text[CLI_BUF_SIZE];
     if (read_text(argc, argv, 1, text, (int)sizeof(text)) != 0) return;
     int rc = todo_add(text);
-    if (rc > 0) { kprintf("Tugas #%d ditambahkan.\n", rc); }
+    if (rc >= 0) { kprintf("Tugas #%d ditambahkan.\n", rc); }
     else        report(rc);
 }
 
@@ -79,6 +79,14 @@ static void cmd_done(int argc, char** argv) {
     if (id < 0) { kprintf("Penggunaan: done <no_tugas>\n"); return; }
     int rc = todo_done(id);
     if (rc == TODO_OK) { kprintf("Tugas #%d selesai.\n", id); todo_board_show(); }
+    else               report(rc);
+}
+
+static void cmd_undone(int argc, char** argv) {
+    int id = (argc == 2) ? parse_id(argv[1]) : -1;
+    if (id < 0) { kprintf("Penggunaan: undone <no_tugas>\n"); return; }
+    int rc = todo_undone(id);
+    if (rc == TODO_OK) { kprintf("Tugas #%d kembali ke belum selesai.\n", id); todo_board_show(); }
     else               report(rc);
 }
 
@@ -110,6 +118,7 @@ void cmd_todo_init(void) {
     cli_register_args("add",   "tambah tugas baru: add <teks tugas>",  cmd_add,  -1);
     cli_register     ("list",  "tampilkan papan tugas",                cmd_list);
     cli_register_args("done",  "tandai tugas selesai: done <no>",      cmd_done,  1);
+    cli_register_args("undone","kembalikan tugas ke belum selesai: undone <no>", cmd_undone, 1);
     cli_register_root("edit",  "ubah teks tugas: edit <no> <teks>",    cmd_edit, -1);
     cli_register_root("del",   "hapus tugas: del <no>",                cmd_del,   1);
     cli_register_root("purge", "hapus semua tugas yang sudah selesai", cmd_purge, 0);
