@@ -78,7 +78,7 @@ static void cmd_done(int argc, char** argv) {
     int id = (argc == 2) ? parse_id(argv[1]) : -1;
     if (id < 0) { kprintf("Penggunaan: done <no_tugas>\n"); return; }
     int rc = todo_done(id);
-    if (rc == TODO_OK) { kprintf("Tugas #%d selesai.\n", id); todo_board_show(); }
+    if (rc == TODO_OK) { kprintf("Tugas #%d selesai.\n", id); }
     else               report(rc);
 }
 
@@ -86,7 +86,7 @@ static void cmd_undone(int argc, char** argv) {
     int id = (argc == 2) ? parse_id(argv[1]) : -1;
     if (id < 0) { kprintf("Penggunaan: undone <no_tugas>\n"); return; }
     int rc = todo_undone(id);
-    if (rc == TODO_OK) { kprintf("Tugas #%d kembali ke belum selesai.\n", id); todo_board_show(); }
+    if (rc == TODO_OK) { kprintf("Tugas #%d kembali ke belum selesai.\n", id); }
     else               report(rc);
 }
 
@@ -96,7 +96,7 @@ static void cmd_edit(int argc, char** argv) {
     char text[CLI_BUF_SIZE];
     if (read_text(argc, argv, 2, text, (int)sizeof(text)) != 0) return;
     int rc = todo_edit(id, text);
-    if (rc == TODO_OK) { kprintf("Tugas #%d diubah.\n", id); todo_board_show(); }
+    if (rc == TODO_OK) { kprintf("Tugas #%d diubah.\n", id); }
     else               report(rc);
 }
 
@@ -104,7 +104,7 @@ static void cmd_del(int argc, char** argv) {
     int id = (argc == 2) ? parse_id(argv[1]) : -1;
     if (id < 0) { kprintf("Penggunaan: del <no_tugas>\n"); return; }
     int rc = todo_del(id);
-    if (rc == TODO_OK) { kprintf("Tugas #%d dihapus.\n", id); todo_board_show(); }
+    if (rc == TODO_OK) { kprintf("Tugas #%d dihapus.\n", id); }
     else               report(rc);
 }
 
