@@ -74,6 +74,8 @@ void vga_scroll_view(int delta);  /* gulir riwayat: >0 ke atas, <0 ke bawah */
 void vga_scroll_reset(void);      /* kembali ke layar live */
 void vga_redraw(void);
 void vga_write_overlay(int x, int y, const char* str, uint8_t attr);
+void vga_overlay_set(int x, int y, int w, int h);
+void vga_overlay_clear(void);
 
 /* ---- Serial COM1 (drivers/serial.c) ---- */
 void serial_init(void);

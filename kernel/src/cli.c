@@ -196,10 +196,20 @@ static void hud_render(void) {
 void cli_hud_toggle(void) {
     if (!shell_root) return;
     hud_active = !hud_active;
-    vga_redraw();
     if (hud_active) {
-        hud_render();
+        vga_overlay_set(HUD_X, HUD_Y, HUD_W, HUD_H);
+        vga_redraw();          /* bersihkan sisa overlay lama */
+        hud_render();          /* isi snapshot overlay lewat vga_write_overlay */
+    } else {
+        vga_overlay_clear();
+        vga_redraw();          /* satu-satunya jalan keluar: Tab ditekan lagi */
     }
+}
+
+/* Dipanggil dari IRQ0 (interrupt mati) beberapa kali per detik supaya data HUD
+   tetap hidup selagi perintah berjalan, bukan hanya saat prompt kembali. */
+void cli_hud_refresh(void) {
+    if (hud_active && shell_root) hud_render();
 }
 
 int cli_hud_is_active(void) {
@@ -387,6 +397,7 @@ static void cmd_logout(int argc, char** argv) {
     if (!shell_root) { kprintf("Anda sudah dalam mode guest.\n"); return; }
     if (hud_active) {
         hud_active = 0;
+        vga_overlay_clear();
         vga_redraw();
     }
     protect_drop_root();

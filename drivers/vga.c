@@ -14,6 +14,29 @@ static int hist = 0;                 /* jumlah baris riwayat di atas layar live 
 static int view = 0;                 /* 0 = layar live, n = tergulir n baris ke atas */
 static int cx = 0, cy = 0;
 static uint8_t color = (VGA_BLACK << 4) | VGA_LIGHT_GREY;
+#define OV_MAX_W 40
+#define OV_MAX_H 12
+static int ov_active = 0;
+static int ov_x = 0, ov_y = 0, ov_w = 0, ov_h = 0;
+static uint16_t ov_cells[OV_MAX_H][OV_MAX_W];
+
+static int ov_contains(int x, int y) {
+    return ov_active && x >= ov_x && x < ov_x + ov_w &&
+           y >= ov_y && y < ov_y + ov_h;
+}
+
+static void ov_restore(void) {
+    if (!ov_active) return;
+    for (int r = 0; r < ov_h; r++) {
+        int y = ov_y + r;
+        if (y < 0 || y >= VGA_H) continue;
+        for (int c = 0; c < ov_w; c++) {
+            int x = ov_x + c;
+            if (x >= 0 && x < VGA_W)
+                vga_mem[y * VGA_W + x] = ov_cells[r][c];
+        }
+    }
+}
 
 /* Baris ke-r relatif terhadap layar live (r = 0..24 layar, r < 0 riwayat) */
 #define ROW(r) rows[(top + (r) + BUF_ROWS) % BUF_ROWS]
@@ -55,6 +78,7 @@ static void render(void) {
         for (int i = 0; i < n; i++)
             vga_mem[VGA_W - n + i] = (uint16_t)(uint8_t)tag[i] | (0x70 << 8);   /* hitam di atas abu-abu */
     }
+    ov_restore();                            /* HUD selalu dilukis paling atas */
 }
 
 static void scroll(void) {
@@ -72,6 +96,26 @@ static inline uint32_t irq_off(void) {
 }
 static inline void irq_back(uint32_t f) {
     __asm__ volatile("push %0; popf" : : "r"(f) : "memory", "cc");
+}
+
+/* Daftarkan area overlay. Snapshot dikosongkan dulu, lalu diisi lewat
+   vga_write_overlay(). */
+void vga_overlay_set(int x, int y, int w, int h) {
+    if (w <= 0 || h <= 0 || w > OV_MAX_W || h > OV_MAX_H) return;
+    uint32_t f = irq_off();
+    ov_x = x; ov_y = y; ov_w = w; ov_h = h;
+    ov_active = 1;
+    for (int r = 0; r < h; r++)
+        for (int c = 0; c < w; c++)
+            ov_cells[r][c] = (uint16_t)' ' | ((uint16_t)0x07 << 8);
+    irq_back(f);
+}
+
+/* Matikan overlay; panggil vga_redraw() setelahnya untuk menghapus dari layar. */
+void vga_overlay_clear(void) {
+    uint32_t f = irq_off();
+    ov_active = 0;
+    irq_back(f);
 }
 
 /* Gulir tampilan: delta > 0 ke atas (lebih lama), delta < 0 ke bawah */
@@ -118,7 +162,10 @@ void vga_write_overlay(int x, int y, const char* str, uint8_t attr) {
     int cur_x = x;
     while (*str && cur_x < VGA_W) {
         if (cur_x >= 0) {
-            vga_mem[y * VGA_W + cur_x] = (uint16_t)(uint8_t)(*str) | ((uint16_t)attr << 8);
+            uint16_t v = (uint16_t)(uint8_t)(*str) | ((uint16_t)attr << 8);
+            vga_mem[y * VGA_W + cur_x] = v;
+            if (ov_contains(cur_x, y))
+                ov_cells[y - ov_y][cur_x - ov_x] = v;   /* simpan agar tetap ada setelah render ulang */
         }
         cur_x++;
         str++;
@@ -136,8 +183,9 @@ void vga_putc(char c) {
         break;
     case '\t': cx = (cx + 8) & ~7; break;
     default:
-        ROW(cy)[cx] = cell(c);
-        vga_mem[cy * VGA_W + cx] = cell(c);
+        ROW(cy)[cx] = cell(c);                 /* tetap masuk riwayat/scrollback */
+        if (!ov_contains(cx, cy))
+            vga_mem[cy * VGA_W + cx] = cell(c); /* jangan timpa HUD yang sedang aktif */
         cx++;
     }
     if (cx >= VGA_W) { cx = 0; cy++; }

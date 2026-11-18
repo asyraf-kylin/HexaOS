@@ -68,6 +68,9 @@ void task_tick(void) {
         }
     }
 
+    /* HUD root di-update 20x/detik (50 ms), termasuk saat shell jalankan program. */
+    if ((now % 5) == 0) cli_hud_refresh();
+
     if (current == idle || ++slice >= TASK_QUANTUM) {   /* kuantum habis */
         slice = 0;
         schedule();

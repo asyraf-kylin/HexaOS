@@ -3,7 +3,6 @@
 
 #include "kernel.h"
 #include "mutex.h"
-#include "semaphore.h"
 
 /* Fungsi pengujian / demo */
 void test_deadlock(void);
