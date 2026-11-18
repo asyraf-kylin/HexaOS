@@ -17,6 +17,7 @@ typedef struct vfs_node {
 void vfs_init(void);
 int vfs_create(const char *name);
 int vfs_write(const char *name, const char *data);
+int vfs_set_status(const char *name, char status); /* ubah [ ] <-> [x] tanpa kmalloc */
 char *vfs_read(const char *name);
 int vfs_delete(const char *name);
 void vfs_list(void);

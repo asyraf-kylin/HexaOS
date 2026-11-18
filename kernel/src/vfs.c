@@ -96,6 +96,22 @@ int vfs_write(const char *name, const char *data) {
     return -1;
 }
 
+/* [DEMO-POIN7] Toggle status [ ] <-> [x] LANGSUNG di buffer file.
+   Tidak memakai kmalloc/kfree, jadi tetap berhasil walaupun heap penuh
+   (important saat HEAP_SIZE diperkecil). Dipakai todo_done/todo_undone. */
+int vfs_set_status(const char *name, char status) {
+    for (int i = 0; i < MAX_FILES; i++) {
+        if (file_table[i].is_used && str_cmp(file_table[i].name, name) == 0) {
+            char *c = file_table[i].content;
+            if (!c || file_table[i].size < 4 || c[0] != '[' || c[2] != ']' || c[3] != ' ')
+                return -1; // format bukan "[ ] ..."
+            c[1] = status;
+            return 0;
+        }
+    }
+    return -1;
+}
+
 char *vfs_read(const char *name) {
     for (int i = 0; i < MAX_FILES; i++) {
         if (file_table[i].is_used && str_cmp(file_table[i].name, name) == 0) {

@@ -193,22 +193,16 @@ int todo_done(int id) {
         return TODO_ERR_NOID;
     }
     
-    char buf[256];
-    int i = 0;
-    while (content[i] && i < (int)sizeof(buf) - 1) {
-        buf[i] = content[i];
-        i++;
-    }
-    buf[i] = '\0';
-    
-    if (buf[1] == ' ') {
-        buf[1] = 'x';
-        vfs_write(fname, buf);
+    /* [DEMO-POIN7] Jangan pakai vfs_write() di sini: butuh blok kmalloc baru
+       dan akan gagal saat heap penuh. Status cukup ditoggle langsung. */
+    int rc = TODO_OK;
+    if (content[1] == ' ') {
+        if (vfs_set_status(fname, 'x') < 0) rc = TODO_ERR_OOM;
     }
     
     mutex_unlock(&mutex_vfs);
     todo_recount(&cached_active, &cached_done);
-    return TODO_OK;
+    return rc;
 }
 
 /* Kembalikan tugas yang sudah selesai ke status belum selesai. */
@@ -223,22 +217,14 @@ int todo_undone(int id) {
         return TODO_ERR_NOID;
     }
 
-    char buf[256];
-    int i = 0;
-    while (content[i] && i < (int)sizeof(buf) - 1) {
-        buf[i] = content[i];
-        i++;
-    }
-    buf[i] = '\0';
-
-    if (buf[1] == 'x' || buf[1] == 'X') {
-        buf[1] = ' ';
-        vfs_write(fname, buf);
+    int rc = TODO_OK;
+    if (content[1] == 'x' || content[1] == 'X') {
+        if (vfs_set_status(fname, ' ') < 0) rc = TODO_ERR_OOM;
     }
 
     mutex_unlock(&mutex_vfs);
     todo_recount(&cached_active, &cached_done);
-    return TODO_OK;
+    return rc;
 }
 
 int todo_edit(int id, const char *text) {
@@ -269,9 +255,10 @@ int todo_edit(int id, const char *text) {
     }
     buf[idx] = '\0';
     
-    vfs_write(fname, buf);
+    int rc = vfs_write(fname, buf);
     mutex_unlock(&mutex_vfs);
-    return TODO_OK;
+    /* [DEMO-POIN7] Jangan diamkan kegagalan kmalloc di vfs_write(). */
+    return (rc < 0) ? TODO_ERR_OOM : TODO_OK;
 }
 
 int todo_del(int id) {

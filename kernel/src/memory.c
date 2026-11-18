@@ -3,7 +3,7 @@
 #include "memory.h"
 #include "kernel.h"
 
-#define HEAP_SIZE (1024 * 1024) // 1 MB Heap
+#define HEAP_SIZE 1024 // 1 KB Heap
 
 /* =====================================================================
  * PENANDA DEMO BAB III - PDF poin 6 (alokator)
@@ -36,7 +36,7 @@ void memory_init(void) {
     heap_start->size = HEAP_SIZE - META_SIZE;
     heap_start->next = NULL;
     heap_start->free = 1;
-    kprintf("[ OK ] Memory manager initialized (1 MB heap)\n");
+    kprintf("[ OK ] Memory manager initialized (1 KB heap)\n");
 }
 
 void *kmalloc(size_t size) {

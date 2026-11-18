@@ -7,7 +7,7 @@
 #define TASK_STACK_SIZE 8192   /* stack kernel per thread (byte) */
 #define TASK_NAME_LEN   16
 #define TIMER_HZ        100    /* 1 tick = 10 ms */
-#define TASK_QUANTUM    5   /* kuantum Round Robin: 5 tick = 50 ms */
+#define TASK_QUANTUM    10   /* kuantum Round Robin: 5 tick = 50 ms */
 
 /* [DEMO-RR][UBAH] Knob paling aman untuk membuat Round Robin terlihat:
  *   TASK_QUANTUM 5 -> 2  => pindah giliran tiap 20 ms (2 tick IRQ0).
