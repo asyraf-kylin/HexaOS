@@ -5,6 +5,21 @@
 
 #define HEAP_SIZE (1024 * 1024) // 1 MB Heap
 
+/* =====================================================================
+ * PENANDA DEMO BAB III - PDF poin 6 (alokator)
+ * ---------------------------------------------------------------------
+ * Dua cara menampilkan OOM, JANGAN disamakan:
+ *  1) `add` terus sampai > 64 tugas -> VFS penuh. Pesan "Penyimpanan penuh!"
+ *     muncul dari MAX_FILES (vfs.h), heap masih tersisa. Ini batas file.
+ *  2) `diag mem` -> test_mem() di bawah mengalokasi blok 1 KB sampai
+ *     kmalloc() benar-benar mengembalikan NULL (heap OOM), lalu kfree semua.
+ *     Screenshot: Free saat OOM ~0, lalu kembali ke angka awal.
+ * [DEMO] `sysinfo` menampilkan Heap terpakai/tersedia dari fungsi di bawah.
+ * [JANGAN] mengubah urutan di vfs_write(): alokasi baru dulu, baru kfree lama.
+ *          Kalau dibalik, OOM membuat isi file lama hilang.
+ * [UBAH] HEAP_SIZE hanya kalau ingin batas OOM lebih cepat tercapai.
+ * ===================================================================== */
+
 typedef struct block_meta {
     size_t size;
     struct block_meta *next;
@@ -86,6 +101,8 @@ size_t memory_get_used(void) {
 /* ==========================================================
  * Pengujian Alokasi Memori / OOM (Anggota 4 - A4)
  * ========================================================== */
+/* [DEMO-POIN6] Dipanggil `diag mem`. Bisa dihapus bersama entri "mem" di
+   cmd_diag.c dan prototipe di svc.h kalau diag tidak dipakai. */
 void test_mem(void) {
     kprintf("[MEM] Pengujian alokasi heap sampai OOM...\n");
     kprintf("[MEM] Titik Awal: Heap stabil (Free: %u bytes).\n", (unsigned int)memory_get_free());

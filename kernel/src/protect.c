@@ -8,10 +8,23 @@
  *   - Semua akses user ke memori / layanan kernel divalidasi lewat
  *     protect_check() dan protect_syscall().
  *
- * Level 2 (opsional, hardware ring 3): aktifkan dengan -DHEXAOS_HW_RING3.
- *   Membutuhkan GDT dengan segmen ring 3 (0x1B kode, 0x23 data) dan TSS
- *   (esp0) yang diset oleh bagian GDT/boot.
+ * Level 2 (hardware ring 3) SUDAH DIHAPUS. PDF mengizinkan kontrol hak
+ * akses sederhana, jadi satu lapis proteksi software di atas sudah cukup.
  */
+
+/* =====================================================================
+ * PENANDA DEMO BAB III - PDF poin 8 (proteksi & hak akses)
+ * ---------------------------------------------------------------------
+ * Satu lapis yang dipakai kiosk: kontrol akses software. Setiap thread
+ * punya privilege (PRIV_USER/PRIV_KERNEL), tabel region, dan gerbang
+ * protect_syscall(). Bukti utama ada di gerbang CLI: `cli_run()` (cli.c).
+ * Blok `#ifdef HEXAOS_HW_RING3` sudah dibuang dari file ini.
+ *
+ * [DEMO-POIN8] `diag protect` -> semua baris "SESUAI". Pasangan
+ *   protect_test_begin()/protect_test_end() mengembalikan password dan
+ *   privilege setelah uji. [JANGAN] pakai protect_init() di dalam uji.
+ * [UBAH] DEFAULT_ROOT_PW "root" harus sama dengan udata.pw_awal di tests.c.
+ * ===================================================================== */
 
 #include "kernel.h"
 #include "protect.h"
@@ -256,23 +269,3 @@ int32_t protect_syscall(uint32_t num, uint32_t a1, uint32_t a2)
     }
 }
 
-/* --------------------- Level 2: hardware ring 3 --------------------- */
-#ifdef HEXAOS_HW_RING3
-
-void enter_user_mode(uint32_t entry, uint32_t user_stack)
-{
-    __asm__ volatile(
-        "cli\n"
-        "movw $0x23, %%ax\n"
-        "movw %%ax, %%ds\n movw %%ax, %%es\n movw %%ax, %%fs\n movw %%ax, %%gs\n"
-        "pushl $0x23\n"
-        "pushl %0\n"
-        "pushfl\n"
-        "orl $0x200, (%%esp)\n"
-        "pushl $0x1B\n"
-        "pushl %1\n"
-        "iret\n"
-        : : "r"(user_stack), "r"(entry) : "eax", "memory");
-}
-
-#endif

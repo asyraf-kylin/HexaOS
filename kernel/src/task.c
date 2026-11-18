@@ -4,6 +4,31 @@
    3. schedule() memilih thread READY berikutnya (melingkar) lalu
       switch_context() berpindah stack/register.
    Thread 0 ("shell") = eksekusi kernel_main/CLI yang sudah berjalan. */
+
+/* =====================================================================
+ * PENANDA DEMO BAB III - PDF poin 2 (thread) dan poin 3 (preemptive RR)
+ * ---------------------------------------------------------------------
+ * RANTAI PREEMPTION YANG BENAR-BENAR JALAN (bukan simulasi teks):
+ *   drivers/timer.c : PIT 1193182/100 -> IRQ0 tiap 10 ms -> timer_irq()
+ *   task.c          : task_tick() -> ++slice >= TASK_QUANTUM -> schedule()
+ *   task.c          : pick_next() memilih READY berikutnya secara melingkar
+ *   arch/switch.asm : switch_context() menukar ESP + register callee-saved
+ *   arch/isr.asm    : `iret` di akhir isr_common memulihkan EIP thread baru
+ *
+ * KENAPA RR "TIDAK KELIHAT" SAAT MAIN BIASA:
+ *   - Shell menghabiskan waktu di kgetc() (polling keyboard), jadi tidak ada
+ *     output baru walaupun CPU sedang bergiliran.
+ *   - Thread `summary` sengaja SILENT: hanya menulis ring buffer (svc.c).
+ *   Cara melihatnya: `login`, tekan Tab (HUD CPU/SW langsung berjalan),
+ *   jalankan `sysinfo` dua kali, atau `diag preempt` (A/B bergantian).
+ *
+ * [UBAH] TASK_QUANTUM di kernel/include/task.h (5 -> 2) bila ingin lebih cepat.
+ * [JANGAN] ubah switch.asm, isr.asm, atau timer_init() di task_init().
+ * [JANGAN] hapus timer_init(): tanpa IRQ0 tidak ada preemption sama sekali.
+ * [UBAH] test_threads()/test_preempt() di bawah dipanggil `diag threads` /
+ *        `diag preempt`; hapus saja jika diag tidak dipakai (svc.h dan
+ *        cmd_diag.c harus ikut disesuaikan).
+ * ===================================================================== */
 #include "kernel.h"
 #include "task.h"
 #include "cli.h"
@@ -32,6 +57,9 @@ task_t* task_current(void) { return current; }
 
 /* Round Robin: cari thread READY mulai dari slot setelah thread sekarang.
    Kalau tidak ada, jalankan idle (hanya hlt). */
+/* [DEMO-RR] Ini "melingkar" yang dimaksud PDF: start = slot thread sekarang,
+   lalu +1, +2, ... modulo TASK_MAX. Thread baru (NEW) belum bisa dipilih
+   sebelum task_start(); thread WAITING/TERMINATED dilewati otomatis. */
 static task_t* pick_next(void) {
     int start = (int)(current - tasks);
     for (int i = 1; i <= TASK_MAX; i++) {
@@ -42,6 +70,8 @@ static task_t* pick_next(void) {
 }
 
 /* HARUS dipanggil dengan interrupt mati. */
+/* [DEMO-RR] `switches++` di bawah adalah angka GILIRAN yang ditampilkan
+   sysinfo/HUD. Bila angka summary bertambah, berarti context switch nyata. */
 static void schedule(void) {
     task_t* prev = current;
     if (prev->state == TASK_RUNNING) prev->state = TASK_READY;
@@ -70,8 +100,11 @@ void task_tick(void) {
     }
 
     /* HUD root di-update 20x/detik (50 ms), termasuk saat shell jalankan program. */
-    if ((now % 5) == 0) cli_hud_refresh();
+    if ((now % 5) == 0) cli_hud_refresh();   /* [DEMO-RR] HUD = bukti visual langsung */
 
+    /* [DEMO-RR] Titik preemption: 5 tick x 10 ms = 50 ms.
+       [UBAH] TASK_QUANTUM di task.h bila ingin giliran lebih cepat.
+       Baris `current->cpu_ticks++` di atas mengisi kolom CPU(tick) sysinfo. */
     if (current == idle || ++slice >= TASK_QUANTUM) {   /* kuantum habis */
         slice = 0;
         schedule();
@@ -282,6 +315,9 @@ static void demo_abort(task_t* a, task_t* b) {
     kputs("\n^C\n");                        /* newline: prompt berikutnya di baris baru */
 }
 
+/* [DEMO-POIN2] Dipanggil `diag threads`: dua thread counter/greeter,
+   snapshot NEW -> READY/RUNNING -> WAITING (task_sleep) -> TERMINATED.
+   Bisa dihapus kalau diag tidak dipakai, tapi PDF poin 2 butuh bukti status. */
 void test_threads(void) {
     reap_terminated();
     task_t* a = task_create("counter", thread_counter, NULL);
@@ -326,6 +362,9 @@ static void spinner(void* arg) {
     }
 }
 
+/* [DEMO-POIN3] Dipanggil `diag preempt`: spinner A/B TANPA task_yield(),
+   tapi tetap bergantian karena IRQ0 memanggil schedule() tiap 5 tick.
+   Ini bukti paling jelas kalau RR itu preemptive, bukan simulasi printf. */
 void test_preempt(void) {
     reap_terminated();
     kprintf("Dua thread loop tanpa yield, 1 huruf = 1 tick CPU (Ctrl+C = batal):\n");
@@ -358,6 +397,8 @@ void task_init(void) {
 
     idle = task_spawn("idle", idle_entry, NULL);
 
+    /* [DEMO-RR][JANGAN DIHAPUS] Pasang PIT -> IRQ0 -> task_tick().
+       Kalau baris ini hilang, kuantum tidak pernah habis dan RR mati. */
     timer_init(TIMER_HZ, task_tick);
 
     kprintf("[ OK ] Scheduler Round Robin, kuantum %d ms\n", TASK_QUANTUM * 1000 / TIMER_HZ);

@@ -9,6 +9,33 @@
  * Daftarkan tiga fungsi test_* di bawah ke tabel perintah shell.
  */
 
+/* =====================================================================
+ * PENANDA DEMO BAB II/III - PDF poin 4 (sinkronisasi), 5 (deadlock), 8
+ * ---------------------------------------------------------------------
+ * Fungsi test_* di sini MEMANGGIL KERNEL ASLI: task_spawn, mutex_lock,
+ * timer, protect_syscall. Bukan printf yang berpura-pura ada thread.
+ * Dipanggil dari `diag <nama>` (lihat kernel/cmd/cmd_diag.c).
+ *
+ * [JANGAN-HAPUS] cmd_diag.c + file ini kalau butuh bukti PDF poin 4 & 5.
+ *   PDF mewajibkan perbandingan "tanpa mutex vs dengan mutex" dan
+ *   "deadlock lalu diselesaikan". Itu tidak bisa dibuktikan hanya dengan
+ *   alur add/list/done yang memang sudah benar.
+ *
+ * RACE: alur normal kiosk TIDAK akan menunjukkan race. Semua counter
+ *   dilindungi mutex dan todo_recount() menghitung ulang dari VFS.
+ *   [UBAH] lihat penanda [DEMO-RACE] di todo.c / svc.c bila ingin memaksa
+ *   race muncul lewat perintah biasa (add/done berulang).
+ *
+ * DEADLOCK: sengaja dibuat di sini, dengan timeout 50 tick (500 ms)
+ *   supaya demo tidak menggantung kiosk. [JANGAN] memindahkan urutan
+ *   lock terbalik ke todo.c untuk pemakaian sehari-hari: kiosk akan hang
+ *   dan perlu reboot (lihat penanda [DEMO-DEADLOCK] di todo.c).
+ *
+ * PROTECT: protect_test_begin()/protect_test_end() wajib berpasangan
+ *   agar password dan privilege admin tidak berubah setelah diag protect.
+ *   [JANGAN] memanggil protect_init() di sini.
+ * ===================================================================== */
+
 #include "kernel.h"
 #include "sync.h"
 #include "protect.h"
@@ -56,7 +83,9 @@ static mutex_t lock_b;
 
 static int fix_mode;  /* 0 = deadlock, 1 = lock ordering */
 
-#define DEADLOCK_TIMEOUT_TICKS 50  /* Sesuaikan dengan frekuensi PIT */
+#define DEADLOCK_TIMEOUT_TICKS 50  /* 50 tick x 10 ms = 500 ms */
+/* [DEMO-DEADLOCK] Timeout ini adalah "deteksi": mutex_timedlock() benar-benar
+   menunggu sampai habis. Tanpa timeout, QEMU hang permanen saat skenario 1. */
 
 static void dl_thread(mutex_t *first, mutex_t *second, const char *who)
 {
@@ -77,7 +106,8 @@ static void dl_thread(mutex_t *first, mutex_t *second, const char *who)
         kprintf("[%s] dapat '%s', menunggu '%s'...\n",
                 who, first->name, second->name);
 
-        task_yield();  /* Memberi kesempatan thread lain mengunci mutex kedua */
+        task_yield();  /* [DEMO-DEADLOCK] T1 pegang A, T2 pegang B; yielded dulu
+                          supaya circular wait benar-benar terjadi. */
 
         if (!mutex_timedlock(second, DEADLOCK_TIMEOUT_TICKS)) {
             /* Deteksi dan pemulihan: timeout -> lepas lock yang dipegang */
@@ -113,6 +143,8 @@ void test_deadlock(void)
     mutex_init(&lock_a, "A");
     mutex_init(&lock_b, "B");
 
+    /* [DEMO-DEADLOCK] Skenario 1 = bug sengaja. Screenshot di sini:
+       kedua thread terblokir, lalu salah satu melaporkan timeout. */
     kprintf("== Skenario 1: deadlock (T1: A->B, T2: B->A) + deteksi timeout ==\n");
 
     fix_mode = 0;
@@ -126,6 +158,9 @@ void test_deadlock(void)
     mutex_init(&lock_a, "A");
     mutex_init(&lock_b, "B");
 
+    /* [DEMO-DEADLOCK] Skenario 2 = solusi: mutex_lock_ordered() memakai
+       urutan alamat mutex yang sama untuk kedua thread (menghilangkan
+       circular wait). Screenshot di sini sebagai "penanganan". */
     kprintf("== Skenario 2: solusi lock ordering ==\n");
 
     fix_mode = 1;
@@ -159,6 +194,11 @@ static void race_worker(void *arg)
 
         int tmp = race_counter;  /* Baca */
 
+        /* [DEMO-RACE] Jangan dihapus saat uji tanpa mutex.
+           Dengan -O2, `int tmp = x; x = tmp + 1;` bisa jadi satu instruksi
+           dan CPU tunggal tidak bisa menyelanya -> race tidak pernah muncul.
+           task_yield() di sini membuka jendela preemption di antara baca
+           dan tulis, supaya "update hilang" benar-benar terlihat. */
         if (i % 1000 == 0) {
             task_yield();  /* Memberi kesempatan thread lain menyela */
         }
@@ -193,6 +233,10 @@ static void race_jalankan(int pakai_mutex, const char *label)
                 : "SALAH (ada update hilang)");
 }
 
+/* [DEMO-POIN4] Urutan cetak yang harus masuk ke Bab III:
+   "Tanpa mutex: < 100000 -> SALAH (ada update hilang)"
+   "Dengan mutex: 100000 -> BENAR"
+   Itu perbandingan yang diminta PDF, bukan sekadar angka akhir. */
 void test_race(void)
 {
     mutex_init(&race_lock, "race");
@@ -314,6 +358,9 @@ static void user_thread(void *arg)
     prot_done = 1;
 }
 
+/* [DEMO-POIN8] Semua baris harus berakhir "SESUAI". Setelah selesai,
+   peran shell dan password admin kembali seperti semula (protect_test_end).
+   [JANGAN] mengganti protect_test_begin() dengan protect_init(). */
 void test_protect(void)
 {
     protect_test_begin();

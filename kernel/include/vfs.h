@@ -20,6 +20,5 @@ int vfs_write(const char *name, const char *data);
 char *vfs_read(const char *name);
 int vfs_delete(const char *name);
 void vfs_list(void);
-void vfs_run_test(void);
 
 #endif

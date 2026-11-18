@@ -2,6 +2,25 @@
 #include "kernel.h"
 #include "svc.h"
 
+/* =====================================================================
+ * PENANDA DEMO BAB III - tabel bukti per komponen PDF
+ * ---------------------------------------------------------------------
+ *   diag threads  -> poin 2 : NEW/READY/RUNNING/WAITING/TERMINATED
+ *   diag preempt  -> poin 3 : A/B bergantian TANPA yield (RR nyata)
+ *   diag race     -> poin 4 : tanpa mutex < 100000, dengan mutex = 100000
+ *   diag deadlock -> poin 5 : blokir -> timeout -> lock ordering
+ *   diag mem      -> poin 6 : kmalloc sampai NULL lalu kfree semua
+ *   diag protect  -> poin 8 : user/kernel + password, semua "SESUAI"
+ *
+ * Semua entri memanggil fungsi kernel asli di tests.c / task.c / memory.c.
+ * [JANGAN-HAPUS] File ini kalau Bab III butuh bukti poin 3, 4, 5, 6, 8.
+ * [UBAH] Kalau ingin kiosk terlihat "murni aplikasi", perintah ini bisa
+ *   disembunyikan dari help (cli_register_root -> tidak dipanggil di
+ *   cli_init), tetapi jangan dihapus fungsi test_*-nya.
+ * [HAPUS] Cara aman membuang seluruh diag: hapus file ini, hapus
+ *   cmd_diag_init() di cli.c, dan hapus prototipe test_* di svc.h.
+ * ===================================================================== */
+
 typedef struct { const char* name; const char* desc; void (*fn)(void); } diag_entry_t;
 
 static const diag_entry_t diag_table[] = {

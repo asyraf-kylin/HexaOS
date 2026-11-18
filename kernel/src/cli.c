@@ -4,6 +4,24 @@
 #include "task.h"
 #include "memory.h"
 
+/* =====================================================================
+ * PENANDA DEMO BAB III - PDF poin 1 (boot/CLI) dan poin 8 (hak akses)
+ * ---------------------------------------------------------------------
+ * SATU-SATUNYA pintu cek hak akses ada di cli_run(): baris
+ * `if (cmds[i].root_only && !shell_root) ...` -> "Akses Ditolak".
+ * [JANGAN] menyebar cek shell_root ke cmd_*.c. Perintah admin baru cukup
+ *   didaftarkan dengan cli_register_root() (contoh: edit/del/purge/diag).
+ *
+ * [DEMO-POIN1] `help`, `add`, `list` = 3 perintah buatan kelompok minimal.
+ * [DEMO-POIN8] `del 1` sebagai guest -> ditolak; `login` -> prompt admin;
+ *   lalu `del 1` berhasil. Itu bukti "diizinkan vs ditolak".
+ * [DEMO-RR] HUD (Tab saat admin / `hud`) menampilkan CPU & GILIRAN thread
+ *   secara live -> bukti visual context switch tanpa perlu diag.
+ * [UBAH-SESUAIPDF] Prompt sekarang `kiosk@hexa>`; task board meminta
+ *   `guest@hexa>` / `admin@hexa#`. Ini kosmetik, ubah di bawah bila perlu.
+ * [JANGAN] menghapus print_logo_unicode() di main.c: PDF wajib logo ASCII.
+ * ===================================================================== */
+
 /* Mode root shell: 0 = user biasa, 1 = root */
 static int shell_root = 0;
 
@@ -457,6 +475,7 @@ void cli_run(void) {
         for (int i = 0; i < cmd_count; i++) {
             if (kstrcmp(argv[0], cmds[i].name) == 0) {
                 if (cmds[i].root_only && !shell_root) {
+                    /* [DEMO-POIN8] Screenshot baris ini untuk Bab III. */
                     kprintf("Akses Ditolak: Hanya Admin yang dapat menjalankan '%s'.\n", argv[0]);
                     kprintf("Ketik 'login' untuk masuk sebagai admin.\n");
                     found = 1;

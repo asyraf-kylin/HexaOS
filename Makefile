@@ -1,4 +1,12 @@
 # Makefile HexaOS
+# [PENANDA DEMO] Semua file .c di kernel/src, kernel/cmd, kernel/logo, arch,
+# dan drivers diambil otomatis oleh wildcard di bawah. Jadi:
+#   - menghapus sebuah file .c = menghapusnya dari build (setelah make clean)
+#   - menambah file .c baru = langsung ikut tercompile, TIDAK perlu edit Makefile
+# File/kode yang sudah dibuang: cmd_vfs.c, stubs.c, semaphore.c/h, sync.c,
+# mutex_modul_init(), prototipe vfs_run_test(), dan blok HEXAOS_HW_RING3.
+# Kalau mengubah/menghapus file: `make clean && make` lalu `make run`.
+# [OPSIONAL] tambahkan .gitignore berisi "build/" sebelum commit akhir.
 .RECIPEPREFIX := >
 
 CC      := gcc

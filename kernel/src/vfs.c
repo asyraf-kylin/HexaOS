@@ -6,6 +6,24 @@
 
 static vfs_node_t file_table[MAX_FILES];
 
+/* =====================================================================
+ * PENANDA DEMO BAB III - PDF poin 7 (VFS / RAMDisk)
+ * ---------------------------------------------------------------------
+ * Pemetaan CRUD yang harus disebut di laporan:
+ *   add          -> vfs_create("todo_<id>.txt") + vfs_write("[ ] teks")
+ *   list         -> vfs_name_at() + vfs_read() lewat todo_at()
+ *   edit / done  -> vfs_write() (status '[ ]' berubah jadi '[x]')
+ *   del / purge  -> vfs_delete() + kfree() isi file
+ * Batas: 64 file (MAX_FILES di vfs.h), nama maks. 32 karakter.
+ *
+ * [DEMO-POIN7] vfs_write() sudah AMAN OOM: kmalloc() blok BARU dulu,
+ *   salin, baru kfree() yang lama. [JANGAN] kembalikan ke urutan lama.
+ * [DEMO] vfs_name_at() dipakai todo_recount()/todo_at()/todo_purge_done().
+ *   [JANGAN] dihapus: iterasi file tidak bisa hanya memakai index slot,
+ *   karena slot kosong dipakai ulang setelah del.
+ * [SUDAH-DIHAPUS] Prototipe usang vfs_run_test() sudah dibuang dari vfs.h.
+ * ===================================================================== */
+
 static int str_len(const char *s) {
     int i = 0;
     while (s[i]) i++;

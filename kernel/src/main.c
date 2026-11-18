@@ -3,6 +3,22 @@
 #include "todo.h"
 #include "svc.h"
 
+/* =====================================================================
+ * PENANDA DEMO BAB III - urutan boot (PDF poin 1)
+ * ---------------------------------------------------------------------
+ * vga/serial/gdt/idt/keyboard -> logo ASCII -> memory -> vfs -> todo ->
+ * task (pasang IRQ0/RR) -> sync -> protect -> STI -> summary_start -> CLI.
+ *
+ * [JANGAN] menghapus print_logo_ascii() / print_logo_unicode(): PDF poin 1
+ *   mewajibkan logo ASCII saat booting.
+ * [JANGAN] menghapus task_init() (scheduler) dan summary_start() (thread 2).
+ * [SUDAH-DIHAPUS] sync.c, sync_init(), dan mutex_modul_init(): dulu hanya
+ *   kprintf + fungsi kosong. Mutex nyata tetap diinisialisasi per objek
+ *   lewat mutex_init() di todo.c / tests.c.
+ * [OPSIONAL] pindahkan PDF ke folder docs/ dan tambahkan build/ ke .gitignore
+ *   sesuai task board (tidak memengaruhi biner).
+ * ===================================================================== */
+
 #define BOOT_STEP_MS  350   
 #define BOOT_BAR_MS   60    
 #define BOOT_BAR_LEN  24
@@ -34,11 +50,10 @@ void kernel_main(void) {
     vfs_init();      kdelay_ms(BOOT_STEP_MS);
     todo_init();     kdelay_ms(BOOT_STEP_MS);
     task_init();     kdelay_ms(BOOT_STEP_MS);
-    sync_init();     /* Anggota 3: mutex */
     protect_init();  /* Anggota 3: hak akses */
     
     interrupts_enable();
-    summary_start();  /* worker rekap latar belakang (Anggota 2) */
+    summary_start();  /* [JANGAN-HAPUS] thread latar belakang ke-2 (PDF poin 2) */
     cli_init();
     kprintf("[ OK ] Command-line interface ready\n\n");
     boot_progress("Loading system");

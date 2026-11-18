@@ -4,15 +4,56 @@
 #include "memory.h"
 #include "kernel.h"
 
+/* =====================================================================
+ * PENANDA DEMO BAB II/III - PDF poin 4, 6, 7
+ * ---------------------------------------------------------------------
+ * ATURAN EMAS: kunci mutex_vfs DULU, baru mutex_counter.
+ * Semua jalur di file ini mengikuti aturan itu (lihat todo_recount,
+ * todo_add). Pelanggaran urutan hanya boleh muncul di tests.c,
+ * bukan di sini.
+ *
+ * [DEMO-RACE] Alur normal (add/done/list) TIDAK menunjukkan race karena
+ *   (a) counter diubah di bawah mutex_counter, dan
+ *   (b) setiap operasi ditutup todo_recount() yang menghitung ulang dari VFS.
+ *   Kalau mau memaksa race lewat perintah biasa, lakukan ini SEMENTARA:
+ *     1) di todo_add(), ganti `todo_recount(&cached_active, &cached_done);`
+ *        menjadi `mutex_lock(&mutex_counter); cached_active++; mutex_unlock(&mutex_counter);`
+ *        -- lalu hapus 3 baris mutex itu untuk versi "tanpa mutex".
+ *     2) di svc.c, tambahkan thread kedua yang melakukan cached_active++
+ *        tanpa mutex (atau pakai race_worker di tests.c sebagai acuan).
+ *     3) ketik add/done bergantian cepat lalu sysinfo: angka Aktif/Selesai
+ *        akan selisih dengan isi `list`. Kembalikan kode setelah demo.
+ *   Lebih aman & sesuai PDF: pakai `diag race` (perbandingan nyata).
+ *
+ * [DEMO-DEADLOCK] Jangan pernah membalik urutan kunci di file ini untuk
+ *   demo normal: kiosk akan hang sampai QEMU di-reset. Skenario deadlock
+ *   yang aman (timeout + lock ordering) sudah ada di `diag deadlock`.
+ *
+ * [UBAH-SESUAIPDF] Dua perbedaan dengan dokumen "Tugas Besar" / task board:
+ *   - ID sekarang mulai 0 dan di-reset saat papan kosong. PDF meminta
+ *     ID mulai 1 dan TIDAK dipakai ulang. Lihat penanda global_id_counter
+ *     dan reset_id_if_empty() di bawah.
+ *   - todo_at() mengurutkan menurut slot VFS, bukan menurut id. PDF
+ *     meminta urutan id naik. Lihat penanda di todo_at().
+ * ===================================================================== */
+
 static mutex_t mutex_vfs;
 static mutex_t mutex_counter;
-static int global_id_counter = 0;
-static int cached_active = 0;
+static int global_id_counter = 0;   /* [UBAH-SESUAIPDF] PDF: mulai dari 1, bukan 0 */
+static int cached_active = 0;       /* [DEMO-RACE] counter bersama yang dijaga mutex_counter */
 static int cached_done = 0;
 
 // Deklarasi helper vfs_name_at dari vfs.c
 int vfs_name_at(int index, char *out, size_t max);
 
+/* [UBAH-SESUAIPDF] Fungsi ini melanggar syarat "ID tidak dipakai ulang".
+   Task board kiosk menyuruh: del 1 lalu add lagi harus mendapat id baru (4),
+   bukan mengulang nomor lama. Untuk mengikuti PDF:
+     - hapus / comment-out seluruh isi fungsi ini (biarkan return), dan
+     - hapus pemanggilannya di todo_del() dan todo_purge_done(), dan
+     - ubah inisialisasi global_id_counter di todo_init() menjadi 1,
+     - ubah `int new_id = global_id_counter;` di todo_add() jadi mulai 1.
+   Perilaku sekarang sengaja dipertahankan supaya demo kiosk tetap rapi. */
 /* Dipanggil dengan mutex_vfs masih terkunci. Kalau papan sudah kosong,
    nomor tugas berikutnya mulai lagi dari 0. */
 static void reset_id_if_empty(void) {
@@ -61,6 +102,9 @@ static void make_todo_filename(int id, char *buf, int max) {
 }
 
 // Sesuai dengan todo.h: menerima 2 parameter pointer
+/* [DEMO-DEADLOCK] Urutan kunci di sini adalah solusi lock ordering:
+   vfs dulu, counter kemudian. Jangan dibalik. Dipanggil thread `summary`
+   tiap 1 detik (svc.c) dan juga setelah add/done/del di file ini. */
 void todo_recount(int *active_out, int *done_out) {
     mutex_lock(&mutex_vfs);
     mutex_lock(&mutex_counter);
@@ -131,6 +175,9 @@ int todo_add(const char *text) {
     }
     
     mutex_unlock(&mutex_vfs);
+    /* [DEMO-RACE] todo_recount() inilah yang menutup celah race di alur normal:
+       angka di papan selalu dihitung ulang dari file VFS, jadi tidak bisa
+       "selisih" walaupun preemption terjadi di tengah add. Lihat banner file. */
     todo_recount(&cached_active, &cached_done);
     return new_id;
 }
@@ -272,6 +319,12 @@ int todo_count(void) {
     return active + done;
 }
 
+/* [UBAH-SESUAIPDF] Sekarang yang diurutkan adalah posisi slot VFS. Karena
+   vfs_delete() memakai ulang slot kosong, urutan di layar BISA bukan urutan id.
+   PDF/task board meminta urutan id naik (1,2,3,4). Untuk mengikuti:
+     kumpulkan semua nama file todo_<id>.txt, cari id minimum yang belum
+     dipakai pada setiap langkah (maks. 64 file, jadi O(n^2) cukup), baru
+     baca isinya. Jangan lupa tetap di dalam mutex_vfs. */
 int todo_at(int index, int *id_out, int *done_out, char *text_out, int max) {
     mutex_lock(&mutex_vfs);
     

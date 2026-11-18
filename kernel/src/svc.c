@@ -6,6 +6,27 @@
 #include "todo.h"
 #include "svc.h"
 
+/* =====================================================================
+ * PENANDA DEMO BAB III - PDF poin 2, 3, 4
+ * ---------------------------------------------------------------------
+ * Dua thread latar belakang sungguhan (task_spawn/task_create):
+ *   summary : loop todo_recount() lalu task_sleep(1000) -> WAITING
+ *   purge   : todo_purge_done(), task_sleep(500), task_exit()
+ * Keduanya DILARANG kprintf (merusak teks yang sedang diketik). Output
+ * ditulis ke ring buffer dan dibaca lewat `sysinfo` -> [Log sinkronisasi].
+ *
+ * [DEMO-POIN2] Jendela WAITING 500 ms di purge sengaja dibuat supaya
+ *   `purge` lalu `sysinfo` berulang bisa menangkap NEW/READY/RUNNING/
+ *   WAITING/TERMINATED (sesuai tabel bukti task board).
+ * [DEMO-RR] Kolom CPU(tick)/GILIRAN summary bertambah walaupun layar diam.
+ *   Itu context switch dari IRQ0, bukan printf.
+ * [DEMO-RACE] Thread di sini MEMAKAI mutex lewat todo_recount(). Kalau
+ *   ingin membuktikan race lewat alur normal, tambahkan writer TANPA mutex
+ *   ke cached_active (lihat penanda [DEMO-RACE] di todo.c), bukan dengan
+ *   mengubah logika recount di sini.
+ * [JANGAN] hapus summary_start() di main.c kalau ingin thread ini ada.
+ * ===================================================================== */
+
 #define LOG_MAX 16
 #define LOG_LEN 64
 
@@ -61,6 +82,8 @@ static void summary_entry(void* arg) {
         line[n] = '\0';
         log_push(line);
 
+        /* [DEMO-POIN2] 1000 ms = 100 tick. Selama ini state = WAITING.
+           [DEMO-RR] Setelah bangun, summary dapat giliran via pick_next(). */
         task_sleep(1000);
     }
 }
@@ -80,6 +103,8 @@ static void purge_entry(void* arg) {
     line[n] = '\0';
     log_push(line);
 
+    /* [DEMO-POIN2] Jendela 500 ms ini yang ditangkap `sysinfo` berulang
+       setelah perintah `purge`. Setelah itu task_exit() -> TERMINATED. */
     task_sleep(500);
     task_exit();
 }

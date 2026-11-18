@@ -21,6 +21,4 @@ void mutex_unlock(mutex_t* m);
 void mutex_lock_ordered(mutex_t* m1, mutex_t* m2);
 void mutex_unlock_ordered(mutex_t* m1, mutex_t* m2);
 
-void mutex_modul_init(void);
-
 #endif

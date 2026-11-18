@@ -1,5 +1,11 @@
 /* timer.c - PIT kanal 0 sebagai detak sistem (IRQ0).
    kdelay_ms() di klib.c memakai kanal 2, jadi tidak bentrok. */
+
+/* [DEMO-RR][JANGAN DIHAPUS] Sumber detak Round Robin (PDF poin 3).
+   PIT_BASE_HZ / 100 = 11931 -> IRQ0 setiap ~10 ms. timer_irq() menaikkan
+   `ticks`, lalu memanggil callback = task_tick() yang dipasang task_init().
+   Tanpa file ini / tanpa irq_register(0, ...), scheduler tidak pernah
+   diundang dan semua thread berjalan sampai task_yield() manual. */
 #include "kernel.h"
 #include "task.h"
 

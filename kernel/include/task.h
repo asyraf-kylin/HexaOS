@@ -8,6 +8,14 @@
 #define TASK_NAME_LEN   16
 #define TIMER_HZ        100    /* 1 tick = 10 ms */
 #define TASK_QUANTUM    5   /* kuantum Round Robin: 5 tick = 50 ms */
+
+/* [DEMO-RR][UBAH] Knob paling aman untuk membuat Round Robin terlihat:
+ *   TASK_QUANTUM 5 -> 2  => pindah giliran tiap 20 ms (2 tick IRQ0).
+ *   Jangan pakai 0. TIMER_HZ bisa dinaikkan, tapi overhead interrupt naik.
+ * [CATATAN] Bukti RR BUKAN printf di scheduler. Bukti yang dipakai Bab III:
+ *   kolom CPU(tick) dan GILIRAN di `sysinfo`, atau HUD (login lalu Tab).
+ *   task_tick() menaikkan cpu_ticks tiap tick; schedule() menaikkan switches
+ *   setiap kali sebuah thread benar-benar mendapat CPU. */
  
 /* Siklus hidup thread: NEW -> READY <-> RUNNING <-> WAITING -> TERMINATED */
 typedef enum {
