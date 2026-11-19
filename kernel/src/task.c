@@ -1,6 +1,6 @@
 /* task.c - manajemen thread dan scheduler preemptive (Round Robin).
    1. Timer berdetak 100x/detik (IRQ0) dan memanggil task_tick().
-   2. Tiap TASK_QUANTUM tick, task_tick() memanggil schedule().
+   2. Tiap `quantum_ticks` tick, task_tick() memanggil schedule().
    3. schedule() memilih thread READY berikutnya (melingkar) lalu
       switch_context() berpindah stack/register.
    Thread 0 ("shell") = eksekusi kernel_main/CLI yang sudah berjalan. */
@@ -10,7 +10,7 @@
  * ---------------------------------------------------------------------
  * RANTAI PREEMPTION YANG BENAR-BENAR JALAN (bukan simulasi teks):
  *   drivers/timer.c : PIT 1193182/100 -> IRQ0 tiap 10 ms -> timer_irq()
- *   task.c          : task_tick() -> ++slice >= TASK_QUANTUM -> schedule()
+ *   task.c          : task_tick() -> ++slice >= quantum_ticks -> schedule()
  *   task.c          : pick_next() memilih READY berikutnya secara melingkar
  *   arch/switch.asm : switch_context() menukar ESP + register callee-saved
  *   arch/isr.asm    : `iret` di akhir isr_common memulihkan EIP thread baru
@@ -19,10 +19,11 @@
  *   - Shell menghabiskan waktu di kgetc() (polling keyboard), jadi tidak ada
  *     output baru walaupun CPU sedang bergiliran.
  *   - Thread `summary` sengaja SILENT: hanya menulis ring buffer (svc.c).
- *   Cara melihatnya: `login`, tekan Tab (HUD CPU/SW langsung berjalan),
- *   jalankan `sysinfo` dua kali, atau `diag preempt` (A/B bergantian).
+ *   Cara melihatnya: `login` lalu Tab (HUD CPU/SW), `sysinfo` dua kali,
+ *   atau `diag preempt` (A/B bergantian).
  *
- * [UBAH] TASK_QUANTUM di kernel/include/task.h (5 -> 2) bila ingin lebih cepat.
+ * [UBAH] Kuantum sekarang bisa diganti saat runtime: `setquantum 2` (admin).
+ *         Konstanta TASK_QUANTUM_DEFAULT hanya dipakai saat boot.
  * [JANGAN] ubah switch.asm, isr.asm, atau timer_init() di task_init().
  * [JANGAN] hapus timer_init(): tanpa IRQ0 tidak ada preemption sama sekali.
  * [UBAH] test_threads()/test_preempt() di bawah dipanggil `diag threads` /
@@ -39,6 +40,7 @@ static uint8_t  stacks[TASK_MAX][TASK_STACK_SIZE] __attribute__((aligned(16)));
 static task_t*  current = NULL;
 static task_t*  idle    = NULL;
 static uint32_t slice   = 0;
+static int      quantum_ticks = TASK_QUANTUM_DEFAULT;  /* diubah setquantum() */
 
 const char* task_state_name(task_state_t s) {
     switch (s) {
@@ -52,6 +54,18 @@ const char* task_state_name(task_state_t s) {
 }
 
 task_t* task_current(void) { return current; }
+
+/* Kuantum Round Robin bisa diubah admin tanpa rebuild kernel. */
+int task_get_quantum(void) { return quantum_ticks; }
+
+int task_set_quantum(int ticks) {
+    if (ticks < TASK_QUANTUM_MIN || ticks > TASK_QUANTUM_MAX) return -1;
+    uint32_t f = irq_save();
+    quantum_ticks = ticks;
+    slice = 0;              /* kuantum baru berlaku mulai tick berikutnya */
+    irq_restore(f);
+    return 0;
+}
 
 /* ---------- scheduler ---------- */
 
@@ -70,8 +84,9 @@ static task_t* pick_next(void) {
 }
 
 /* HARUS dipanggil dengan interrupt mati. */
-/* [DEMO-RR] `switches++` di bawah adalah angka GILIRAN yang ditampilkan
-   sysinfo/HUD. Bila angka summary bertambah, berarti context switch nyata. */
+/* [DEMO-RR] `switches++` di bawah adalah angka SWITCH yang ditampilkan
+   sysinfo (SWITCH) / HUD (SW). Bila angka summary bertambah, berarti
+   context switch nyata. */
 static void schedule(void) {
     task_t* prev = current;
     if (prev->state == TASK_RUNNING) prev->state = TASK_READY;
@@ -102,10 +117,10 @@ void task_tick(void) {
     /* HUD root di-update 20x/detik (50 ms), termasuk saat shell jalankan program. */
     if ((now % 5) == 0) cli_hud_refresh();   /* [DEMO-RR] HUD = bukti visual langsung */
 
-    /* [DEMO-RR] Titik preemption: TASK_QUANTUM(5) tick x 10 ms = 50 ms.
-       [UBAH] TASK_QUANTUM di task.h bila ingin giliran lebih cepat.
+    /* [DEMO-RR] Titik preemption: default 5 tick x 10 ms = 50 ms.
+       [UBAH] `setquantum <tick>` (admin) mengubah quantum_ticks saat runtime.
        Baris `current->cpu_ticks++` di atas mengisi kolom CPU(tick) sysinfo. */
-    if (current == idle || ++slice >= TASK_QUANTUM) {   /* kuantum habis */
+    if (current == idle || ++slice >= (uint32_t)quantum_ticks) {  /* kuantum habis */
         slice = 0;
         schedule();
     }
@@ -229,7 +244,7 @@ static void pad(const char* s, int width) {
 }
 
 void task_dump(void) {
-    kprintf("ID  NAMA        STATUS      CPU(tick)  GILIRAN\n");
+    kprintf("ID  NAMA        STATUS      CPU(tick)  SWITCH\n");
     for (int i = 0; i < TASK_MAX; i++) {
         task_t* t = &tasks[i];
         if (t->state == TASK_UNUSED) continue;
@@ -347,11 +362,11 @@ void test_threads(void) {
     }
 
     if (sleep_interruptible(600)) { demo_abort(a, b); return; }
-    kprintf("\n[4] Akhir -> semua TERMINATED:\n");
+    kprintf("\n[4] Akhir -> counter/greeter TERMINATED:\n");
     task_dump();
 }
 
-/* Bukti preemption: dua thread loop TANPA yield, giliran tetap bergantian. */
+/* Bukti preemption: dua thread loop TANPA yield, switch tetap bergantian. */
 static void spinner(void* arg) {
     char c = (char)(uint32_t)arg;
     uint32_t end = timer_ticks() + 120;
@@ -363,7 +378,7 @@ static void spinner(void* arg) {
 }
 
 /* [DEMO-POIN3] Dipanggil `diag preempt`: spinner A/B TANPA task_yield(),
-   tapi tetap bergantian karena IRQ0 memanggil schedule() tiap 5 tick.
+   tapi tetap bergantian karena IRQ0 memanggil schedule() tiap quantum_ticks.
    Ini bukti paling jelas kalau RR itu preemptive, bukan simulasi printf. */
 void test_preempt(void) {
     reap_terminated();
@@ -377,8 +392,9 @@ void test_preempt(void) {
     }
     if (sleep_interruptible(1600)) { demo_abort(a, b); return; }
     kputc('\n');
-    kprintf("giliran A=%u, B=%u (ganti tiap %d tick = %d ms)\n",
-            a->switches, b->switches, TASK_QUANTUM, TASK_QUANTUM * 1000 / TIMER_HZ);
+    kprintf("switch A=%u, B=%u (ganti tiap %d tick = %d ms)\n",
+            a->switches, b->switches,
+            task_get_quantum(), task_get_quantum() * 1000 / TIMER_HZ);
 }
 
 /* ---------- init ---------- */
@@ -401,5 +417,6 @@ void task_init(void) {
        Kalau baris ini hilang, kuantum tidak pernah habis dan RR mati. */
     timer_init(TIMER_HZ, task_tick);
 
-    kprintf("[ OK ] Scheduler Round Robin, kuantum %d ms\n", TASK_QUANTUM * 1000 / TIMER_HZ);
+    kprintf("[ OK ] Scheduler Round Robin, kuantum %d ms\n",
+            task_get_quantum() * 1000 / TIMER_HZ);
 }

@@ -7,13 +7,16 @@
 #define TASK_STACK_SIZE 8192   /* stack kernel per thread (byte) */
 #define TASK_NAME_LEN   16
 #define TIMER_HZ        100    /* 1 tick = 10 ms */
-#define TASK_QUANTUM    5   /* kuantum Round Robin: 10 tick = 100 ms */
+#define TASK_QUANTUM_DEFAULT 5    /* kuantum awal: 5 tick = 50 ms */
+#define TASK_QUANTUM_MIN     1    /* 1 tick  = 10 ms */
+#define TASK_QUANTUM_MAX   100    /* 100 tick = 1000 ms */
 
-/* [DEMO-RR][UBAH] Knob paling aman untuk membuat Round Robin terlihat:
- *   TASK_QUANTUM 10 -> 2  => pindah giliran tiap 20 ms (2 tick IRQ0).
+/* [DEMO-RR][UBAH] Kuantum bisa diubah saat runtime lewat perintah admin
+ *   `setquantum <tick>` (1-100). Default 5 tick; 1 tick = 10 ms (TIMER_HZ).
  *   Jangan pakai 0. TIMER_HZ bisa dinaikkan, tapi overhead interrupt naik.
  * [CATATAN] Bukti RR BUKAN printf di scheduler. Bukti yang dipakai Bab III:
- *   kolom CPU(tick) dan GILIRAN di `sysinfo`, atau HUD (login lalu Tab).
+ *   kolom CPU(tick) dan SWITCH di `sysinfo`, atau HUD (Tab / `hud`).
+ *   `SW` di HUD adalah singkatan dari `SWITCH` di tabel thread.
  *   task_tick() menaikkan cpu_ticks tiap tick; schedule() menaikkan switches
  *   setiap kali sebuah thread benar-benar mendapat CPU. */
  
@@ -59,6 +62,8 @@ const char* task_state_name(task_state_t s);
 void        task_dump(void);                                   /* cetak tabel thread */
 int         task_get_info(int idx, uint32_t* id, char* name, int max_name, task_state_t* state, uint32_t* cpu_ticks, uint32_t* switches);
 void        task_tick(void);                                   /* dipanggil timer tiap tick */
+int         task_get_quantum(void);                             /* kuantum RR sekarang (tick) */
+int         task_set_quantum(int ticks);                        /* 0 = sukses, -1 = ditolak */
  
 /* ---- Timer (drivers/timer.c) ---- */
 typedef void (*timer_cb_t)(void);

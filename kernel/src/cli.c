@@ -15,7 +15,7 @@
  * [DEMO-POIN1] `help`, `add`, `list` = 3 perintah buatan kelompok minimal.
  * [DEMO-POIN8] `del 1` sebagai guest -> ditolak; `login` -> prompt admin;
  *   lalu `del 1` berhasil. Itu bukti "diizinkan vs ditolak".
- * [DEMO-RR] HUD (Tab saat admin / `hud`) menampilkan CPU & GILIRAN thread
+ * [DEMO-RR] HUD (Tab saat admin / `hud`) menampilkan CPU & SWITCH thread
  *   secara live -> bukti visual context switch tanpa perlu diag.
  * [UBAH-SESUAIPDF] Prompt sekarang `kiosk@hexa>`; task board meminta
  *   `guest@hexa>` / `admin@hexa#`. Ini kosmetik, ubah di bawah bila perlu.
@@ -412,6 +412,7 @@ static void cmd_login(int argc, char** argv) {
         shell_root = 1;
         kprintf("Login berhasil. Anda telah menjadi root.\n");
         kprintf("Fitur admin aktif, ketik 'help' untuk daftar perintah.\n");
+        kprintf("Tekan Tab (atau `hud`) untuk menampilkan Task Monitor HUD.\n");
     } else {
         kprintf("login: password salah.\n");
     }

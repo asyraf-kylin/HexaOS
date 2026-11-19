@@ -14,6 +14,8 @@ static void cmd_sysinfo(int argc, char** argv) {
     todo_get_counts(&active, &done);
     kprintf("=== SYSINFO ===\n");
     kprintf("Uptime : %u detik\n", (unsigned)(timer_ticks() / TIMER_HZ));
+    kprintf("Scheduler: Round Robin, kuantum %d tick (%d ms)\n",
+            task_get_quantum(), task_get_quantum() * 1000 / TIMER_HZ);
     kprintf("Heap   : kapasitas %u B, terpakai %u B, tersedia %u B\n",
             (unsigned)memory_get_capacity(),
             (unsigned)memory_get_used(), (unsigned)memory_get_free());
@@ -60,6 +62,30 @@ static void cmd_setheap(int argc, char** argv) {
             (unsigned)memory_get_used(), (unsigned)memory_get_free());
 }
 
+/* [ADMIN] Ubah kuantum Round Robin saat runtime, tanpa rebuild kernel. */
+static void cmd_setquantum(int argc, char** argv) {
+    if (argc != 2) {
+        kprintf("Penggunaan: setquantum <tick> (rentang %d - %d tick = %d - %d ms)\n",
+                TASK_QUANTUM_MIN, TASK_QUANTUM_MAX,
+                TASK_QUANTUM_MIN * 1000 / TIMER_HZ,
+                TASK_QUANTUM_MAX * 1000 / TIMER_HZ);
+        return;
+    }
+    int v = 0;
+    for (const char* p = argv[1]; *p; p++) {
+        if (*p < '0' || *p > '9') { v = -1; break; }
+        v = v * 10 + (*p - '0');
+        if (v > TASK_QUANTUM_MAX) { v = -1; break; }
+    }
+    if (v < TASK_QUANTUM_MIN || task_set_quantum(v) != 0) {
+        kprintf("setquantum: angka tidak valid (harus %d - %d tick).\n",
+                TASK_QUANTUM_MIN, TASK_QUANTUM_MAX);
+        return;
+    }
+    kprintf("Kuantum Round Robin sekarang %d tick = %d ms.\n",
+            v, v * 1000 / TIMER_HZ);
+}
+
 /* [ADMIN] Tampilkan tabel RAMDisk mentah (bukan tampilan todo).
    Dipakai sebagai bukti langsung operasi VFS di Bab III poin 7. */
 static void cmd_vfsdump(int argc, char** argv) {
@@ -81,7 +107,7 @@ static void cmd_hud(int argc, char** argv) {
     (void)argc; (void)argv;
     cli_hud_toggle();
     if (cli_hud_is_active()) {
-        kprintf("Task Monitor HUD [AKTIF] di pojok kanan bawah layar.\n");
+        kprintf("Task Monitor HUD [AKTIF] di panel kanan layar.\n");
     } else {
         kprintf("Task Monitor HUD [NONAKTIF].\n");
     }
@@ -89,9 +115,10 @@ static void cmd_hud(int argc, char** argv) {
 
 void cmd_system_init(void) {
     cli_register     ("clear",    "bersihkan layar",             cmd_clear);
-    cli_register_root("hud",      "toggle task monitor HUD pojok kanan bawah (atau tombol Tab)", cmd_hud, 0);
+    cli_register_root("hud",      "toggle task monitor HUD panel kanan (atau tombol Tab)", cmd_hud, 0);
     cli_register_root("sysinfo",  "status OS: RAM, thread, log", cmd_sysinfo,  0);
     cli_register_root("setheap",  "ubah kapasitas heap: setheap <byte>", cmd_setheap, 1);
+    cli_register_root("setquantum"," ubah kuantum RR: setquantum <tick>", cmd_setquantum, 1);
     cli_register_root("vfsdump",  "tampilkan tabel berkas RAMDisk",       cmd_vfsdump, 0);
     cli_register_root("reboot",   "restart sistem",              cmd_reboot,   0);
     cli_register_root("shutdown", "matikan sistem",              cmd_shutdown, 0);

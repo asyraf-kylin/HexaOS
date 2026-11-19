@@ -15,13 +15,13 @@ Rantainya nyata, bukan `printf` simulasi:
 PIT 1193182/100 = 11931  ->  IRQ0 tiap 10 ms        (drivers/timer.c)
 timer_irq()              ->  ticks++ ; callback()   (drivers/timer.c)
 callback = task_tick()   ->  cpu_ticks++ ; slice++  (kernel/src/task.c)
-slice >= TASK_QUANTUM(5) -> schedule()              (kernel/src/task.c)
+slice >= kuantum (default 5) -> schedule()          (kernel/src/task.c)
 schedule()               ->  pick_next()            (kernel/src/task.c)
 switch_context()         ->  tukar ESP + register   (arch/switch.asm)
 iret di isr_common       ->  EIP thread baru jalan  (arch/isr.asm)
 ```
 
-Kuantum = 5 tick x 10 ms = **50 ms** (`TASK_QUANTUM` di `task.h`). `pick_next()` mulai dari slot setelah
+Kuantum = 5 tick x 10 ms = **50 ms** (default `TASK_QUANTUM_DEFAULT`). `pick_next()` mulai dari slot setelah
 thread sekarang (`(start + i) % TASK_MAX`), jadi sifatnya melingkar.
 
 Kenapa layar seolah diam:
@@ -32,13 +32,19 @@ Kenapa layar seolah diam:
 
 Cara melihat RR tanpa mengubah kode:
 
-1. `login` (password default `root`), tekan **Tab** → HUD `CPU` dan `SW`
-   milik `summary` bertambah.
-2. `sysinfo` dua kali dengan jeda → kolom `CPU(tick)` dan `GILIRAN` naik.
+1. `login` (password default `root`) lalu tekan **Tab** / ketik `hud` →
+   HUD menyala; kolom `CPU` dan `SW` milik `summary` bertambah.
+2. `sysinfo` dua kali dengan jeda → kolom `CPU(tick)` dan `SWITCH` naik.
+   `SW` di HUD = singkatan `SWITCH` di tabel thread (kedua angka sama).
 3. `diag preempt` → huruf A dan B bergantian **tanpa `task_yield()`**.
 
-Kalau ingin lebih cepat terlihat: ubah `TASK_QUANTUM` di
-`kernel/include/task.h` dari `5` jadi `2` (20 ms), lalu `make clean && make`.
+HUD tidak menyala otomatis saat login dan menempati 36 kolom kanan layar.
+Tekan **Tab** untuk menampilkan/menyembunyikannya. Sebelum screenshot tabel
+lebar (`diag threads`, `sysinfo`, `vfsdump`), pastikan HUD dalam keadaan mati.
+
+Kalau ingin lebih cepat terlihat, cukup jalankan `setquantum 2` (admin) →
+switch tiap 20 ms. Kembali ke default dengan `setquantum 5`. **Tidak perlu
+rebuild** — `sysinfo` menampilkan kuantum yang sedang aktif.
 
 ---
 
@@ -48,7 +54,7 @@ Kalau ingin lebih cepat terlihat: ubah `TASK_QUANTUM` di
 |---|---|---|---|
 | 1. Boot & CLI | boot, `help`, `add`, `list` | logo ASCII, prompt, 3 perintah jalan | layar boot + `help` |
 | 2. Thread | `diag threads`, `purge` lalu `sysinfo` berulang | NEW → READY → RUNNING → WAITING → TERMINATED | tabel status thread |
-| 3. Round Robin | `diag preempt`, HUD/Tab, `sysinfo` | A/B bergantian; `CPU`/`GILIRAN` bertambah | keluaran A/B + angka giliran |
+| 3. Round Robin | `diag preempt`, HUD via Tab setelah `login`, `sysinfo` | A/B bergantian; `CPU`/`SWITCH` bertambah | keluaran A/B + angka switch |
 | 4. Sinkronisasi | `diag race` | tanpa mutex `< 100000` (SALAH), dengan mutex `100000` (BENAR) | dua baris hasil |
 | 5. Deadlock | `diag deadlock` | skenario 1 terblokir + timeout; skenario 2 selesai dengan lock ordering | dua skenario |
 | 6. Memori | `add` berulang dengan teks panjang, `sysinfo`, `del` | baris `heap (add)` naik sampai `kmalloc` gagal: "Penyimpanan penuh!"; `heap (del)` turun lagi setelah hapus | keluaran `add` OOM + `del` + `sysinfo` |
@@ -98,7 +104,7 @@ admin@hexa> diag deadlock
 admin@hexa> diag preempt
 Dua thread loop tanpa yield, 1 huruf = 1 tick CPU (Ctrl+C = batal):
 AAAAABBBBBAAAAABBBBBAAAAABBBBB...
-giliran A=13, B=14 (ganti tiap 5 tick = 50 ms)
+switch A=13, B=14 (ganti tiap 5 tick = 50 ms)
 
 kiosk@hexa> add beli susu
 Tugas #0 ditambahkan.
@@ -108,6 +114,7 @@ kiosk@hexa> login admin
 Password admin: root
 Login berhasil. Anda telah menjadi root.
 Fitur admin aktif, ketik 'help' untuk daftar perintah.
+Tekan Tab (atau `hud`) untuk menampilkan Task Monitor HUD.
 
 admin@hexa> add <teks 120 karakter>   (diulang sampai heap penuh)
 Penyimpanan penuh! kmalloc gagal saat menyimpan tugas.
@@ -119,7 +126,7 @@ Tugas #0 dihapus.
   heap (del): terpakai 1004 B, tersedia 20 B
 ```
 
-Angka `50000`, `100000`, `giliran A=13, B=14`, dan `heap (OOM)` di atas bukan
+Angka `50000`, `100000`, `switch A=13, B=14`, dan `heap (OOM)` di atas bukan
 hasil hitung manual — itu keluaran kernel yang sudah diverifikasi dengan
 `make clean && make` lalu dijalankan di QEMU.
 
@@ -248,7 +255,7 @@ di `todo.c` dan `tests.c`. Transisi ring 3 tidak dihapus — sekarang dipanggil
 dari `login`/`logout` lewat `arch/usermode.*` (lihat Bab II.8 di atas).
 
 **Boleh diubah untuk eksperimen:**
-`kernel/include/task.h` (`TASK_QUANTUM`), `kernel/src/todo.c` (urutan lock /
+`kernel/include/task.h` (`TASK_QUANTUM_DEFAULT`, batas `setquantum`), `kernel/src/todo.c` (urutan lock /
 counter / urutan id), `kernel/src/svc.c` (writer tanpa mutex),
 `kernel/src/tests.c` (jendela race), `kernel/src/cli.c` (prompt guest/admin).
 

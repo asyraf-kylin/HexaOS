@@ -18,7 +18,7 @@
  * [DEMO-POIN2] Jendela WAITING 500 ms di purge sengaja dibuat supaya
  *   `purge` lalu `sysinfo` berulang bisa menangkap NEW/READY/RUNNING/
  *   WAITING/TERMINATED (sesuai tabel bukti task board).
- * [DEMO-RR] Kolom CPU(tick)/GILIRAN summary bertambah walaupun layar diam.
+ * [DEMO-RR] Kolom CPU(tick)/SWITCH summary bertambah walaupun layar diam.
  *   Itu context switch dari IRQ0, bukan printf.
  * [DEMO-RACE] Thread di sini MEMAKAI mutex lewat todo_recount(). Kalau
  *   ingin membuktikan race lewat alur normal, tambahkan writer TANPA mutex
