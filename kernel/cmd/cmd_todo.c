@@ -89,16 +89,26 @@ static void cmd_add(int argc, char** argv) {
 static void cmd_list(int argc, char** argv) { (void)argc; (void)argv; todo_board_show(); }
 
 static void cmd_done(int argc, char** argv) {
+    if (argc == 2 && kstrcmp(argv[1], "all") == 0) {
+        int n = todo_done_all();
+        kprintf("%d tugas ditandai selesai.\n", n);
+        return;
+    }
     int id = (argc == 2) ? parse_id(argv[1]) : -1;
-    if (id < 0) { kprintf("Penggunaan: done <no_tugas>\n"); return; }
+    if (id < 0) { kprintf("Penggunaan: done <no_tugas>|all\n"); return; }
     int rc = todo_done(id);
     if (rc == TODO_OK) { kprintf("Tugas #%d selesai.\n", id); }
     else               report(rc);
 }
 
 static void cmd_undone(int argc, char** argv) {
+    if (argc == 2 && kstrcmp(argv[1], "all") == 0) {
+        int n = todo_undone_all();
+        kprintf("%d tugas dikembalikan ke belum selesai.\n", n);
+        return;
+    }
     int id = (argc == 2) ? parse_id(argv[1]) : -1;
-    if (id < 0) { kprintf("Penggunaan: undone <no_tugas>\n"); return; }
+    if (id < 0) { kprintf("Penggunaan: undone <no_tugas>|all\n"); return; }
     int rc = todo_undone(id);
     if (rc == TODO_OK) { kprintf("Tugas #%d kembali ke belum selesai.\n", id); }
     else               report(rc);
@@ -115,8 +125,14 @@ static void cmd_edit(int argc, char** argv) {
 }
 
 static void cmd_del(int argc, char** argv) {
+    if (argc == 2 && kstrcmp(argv[1], "all") == 0) {
+        int n = todo_del_all();
+        kprintf("%d tugas dihapus.\n", n);
+        heap_note("del all");
+        return;
+    }
     int id = (argc == 2) ? parse_id(argv[1]) : -1;
-    if (id < 0) { kprintf("Penggunaan: del <no_tugas>\n"); return; }
+    if (id < 0) { kprintf("Penggunaan: del <no_tugas>|all\n"); return; }
     int rc = todo_del(id);
     if (rc == TODO_OK) {
         kprintf("Tugas #%d dihapus.\n", id);
@@ -133,9 +149,9 @@ static void cmd_purge(int argc, char** argv) {
 void cmd_todo_init(void) {
     cli_register_args("add",   "tambah tugas baru: add <teks tugas>",  cmd_add,  -1);
     cli_register     ("list",  "tampilkan papan tugas",                cmd_list);
-    cli_register_args("done",  "tandai tugas selesai: done <no>",      cmd_done,  1);
-    cli_register_args("undone","kembalikan tugas ke belum selesai: undone <no>", cmd_undone, 1);
+    cli_register_args("done",  "tandai selesai: done <no>|all",        cmd_done,  1);
+    cli_register_args("undone","kembalikan ke belum selesai: undone <no>|all", cmd_undone, 1);
     cli_register_root("edit",  "ubah teks tugas: edit <no> <teks>",    cmd_edit, -1);
-    cli_register_root("del",   "hapus tugas: del <no>",                cmd_del,   1);
+    cli_register_root("del",   "hapus tugas: del <no>|all",            cmd_del,   1);
     cli_register_root("purge", "hapus semua tugas yang sudah selesai", cmd_purge, 0);
 }

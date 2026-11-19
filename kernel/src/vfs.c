@@ -12,7 +12,8 @@ static vfs_node_t file_table[MAX_FILES];
  * Pemetaan CRUD yang harus disebut di laporan:
  *   add          -> vfs_create("todo_<id>.txt") + vfs_write("[ ] teks")
  *   list         -> vfs_name_at() + vfs_read() lewat todo_at()
- *   edit / done  -> vfs_write() (status '[ ]' berubah jadi '[x]')
+ *   edit         -> vfs_write() (seluruh isi ditulis ulang, OOM-safe)
+ *   done/undone  -> vfs_set_status() (toggle '[ ]' <-> '[x]' di buffer)
  *   del / purge  -> vfs_delete() + kfree() isi file
  * Batas: 64 file (MAX_FILES di vfs.h), nama maks. 32 karakter.
  *
@@ -55,6 +56,8 @@ void vfs_init(void) {
 }
 
 int vfs_create(const char *name) {
+    if (!name || name[0] == '\0' || str_len(name) >= MAX_FILENAME)
+        return -1; // nama kosong / terlalu panjang
     for (int i = 0; i < MAX_FILES; i++) {
         if (file_table[i].is_used && str_cmp(file_table[i].name, name) == 0) {
             return -1; // File sudah ada
@@ -98,7 +101,8 @@ int vfs_write(const char *name, const char *data) {
 
 /* [DEMO-POIN7] Toggle status [ ] <-> [x] LANGSUNG di buffer file.
    Tidak memakai kmalloc/kfree, jadi tetap berhasil walaupun heap penuh
-   (important saat HEAP_SIZE diperkecil). Dipakai todo_done/todo_undone. */
+   (important saat HEAP_DEFAULT diperkecil via setheap). Dipakai
+   todo_done/todo_undone dan todo_done_all/todo_undone_all. */
 int vfs_set_status(const char *name, char status) {
     for (int i = 0; i < MAX_FILES; i++) {
         if (file_table[i].is_used && str_cmp(file_table[i].name, name) == 0) {
@@ -142,12 +146,16 @@ void vfs_list(void) {
     int count = 0;
     for (int i = 0; i < MAX_FILES; i++) {
         if (file_table[i].is_used) {
-            kprintf(" - %s [Size: %u bytes]\n", file_table[i].name, (unsigned int)file_table[i].size);
+            kprintf(" - %s [Size: %u bytes, heap: %u B]\n",
+                    file_table[i].name, (unsigned int)file_table[i].size,
+                    (unsigned int)memory_block_cost(file_table[i].size + 1));
             count++;
         }
     }
     if (count == 0) {
         kprintf(" (tidak ada berkas)\n");
+    } else {
+        kprintf(" (heap = header blok + payload align-4; belum termasuk header blok bebas)\n");
     }
 }
 

@@ -43,9 +43,6 @@ static int global_id_counter = 0;   /* [UBAH-SESUAIPDF] PDF: mulai dari 1, bukan
 static int cached_active = 0;       /* [DEMO-RACE] counter bersama yang dijaga mutex_counter */
 static int cached_done = 0;
 
-// Deklarasi helper vfs_name_at dari vfs.c
-int vfs_name_at(int index, char *out, size_t max);
-
 /* [UBAH-SESUAIPDF] Fungsi ini melanggar syarat "ID tidak dipakai ulang".
    Task board kiosk menyuruh: del 1 lalu add lagi harus mendapat id baru (4),
    bukan mengulang nomor lama. Untuk mengikuti PDF:
@@ -227,6 +224,47 @@ int todo_undone(int id) {
     return rc;
 }
 
+/* [ ] -> [x] untuk semua tugas. Memakai vfs_set_status() (tanpa kmalloc),
+   jadi tetap berhasil walaupun heap penuh. Return: jumlah yang berubah. */
+int todo_done_all(void) {
+    mutex_lock(&mutex_vfs);
+    char fname[32];
+    int changed = 0;
+    int idx = 0;
+
+    while (vfs_name_at(idx, fname, sizeof(fname)) == 0) {
+        char *content = vfs_read(fname);
+        if (content && content[1] == ' ') {
+            if (vfs_set_status(fname, 'x') == 0) changed++;
+        }
+        idx++;
+    }
+
+    mutex_unlock(&mutex_vfs);
+    todo_recount(&cached_active, &cached_done);
+    return changed;
+}
+
+/* [x] -> [ ] untuk semua tugas yang sudah selesai. */
+int todo_undone_all(void) {
+    mutex_lock(&mutex_vfs);
+    char fname[32];
+    int changed = 0;
+    int idx = 0;
+
+    while (vfs_name_at(idx, fname, sizeof(fname)) == 0) {
+        char *content = vfs_read(fname);
+        if (content && (content[1] == 'x' || content[1] == 'X')) {
+            if (vfs_set_status(fname, ' ') == 0) changed++;
+        }
+        idx++;
+    }
+
+    mutex_unlock(&mutex_vfs);
+    todo_recount(&cached_active, &cached_done);
+    return changed;
+}
+
 int todo_edit(int id, const char *text) {
     if (!text || text[0] == '\0') return TODO_ERR_EMPTY;
 
@@ -274,6 +312,28 @@ int todo_del(int id) {
     
     todo_recount(&cached_active, &cached_done);
     return TODO_OK;
+}
+
+/* Hapus semua tugas (aktif + selesai) sekaligus.
+   Setelah vfs_delete(), slot kosong dipakai ulang, jadi idx TIDAK dinaikkan. */
+int todo_del_all(void) {
+    mutex_lock(&mutex_vfs);
+    char fname[32];
+    int removed = 0;
+    int idx = 0;
+
+    while (vfs_name_at(idx, fname, sizeof(fname)) == 0) {
+        if (vfs_delete(fname) == 0) {
+            removed++;
+            continue;   // file berikutnya bergeser ke indeks ini
+        }
+        idx++;
+    }
+    if (removed > 0) reset_id_if_empty();
+    mutex_unlock(&mutex_vfs);
+
+    todo_recount(&cached_active, &cached_done);
+    return removed;
 }
 
 int todo_purge_done(void) {
