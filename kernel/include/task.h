@@ -7,11 +7,11 @@
 #define TASK_STACK_SIZE 8192   /* stack kernel per thread (byte) */
 #define TASK_NAME_LEN   16
 #define TIMER_HZ        100    /* 1 tick = 10 ms */
-#define TASK_QUANTUM    5   /* kuantum Round Robin: 5 tick = 50 ms */
+#define TASK_QUANTUM    5   /* kuantum Round Robin: 10 tick = 100 ms */
 
-/* [DEMO-RR] Nilai final: 5 tick x 10 ms = 50 ms (sesuai task board).
- *   [UBAH] hanya untuk eksperimen: 2 tick = 20 ms bila ingin pergantian
- *   lebih cepat terlihat. Jangan pakai 0; TIMER_HZ naik menambah overhead.
+/* [DEMO-RR][UBAH] Knob paling aman untuk membuat Round Robin terlihat:
+ *   TASK_QUANTUM 10 -> 2  => pindah giliran tiap 20 ms (2 tick IRQ0).
+ *   Jangan pakai 0. TIMER_HZ bisa dinaikkan, tapi overhead interrupt naik.
  * [CATATAN] Bukti RR BUKAN printf di scheduler. Bukti yang dipakai Bab III:
  *   kolom CPU(tick) dan GILIRAN di `sysinfo`, atau HUD (login lalu Tab).
  *   task_tick() menaikkan cpu_ticks tiap tick; schedule() menaikkan switches
