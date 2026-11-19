@@ -9,5 +9,4 @@ void test_preempt(void);   /* A2 */
 void test_race(void);      /* A3 */
 void test_deadlock(void);  /* A3 (sudah ada) */
 void test_protect(void);   /* A3 (sudah ada) */
-void test_mem(void);       /* A4 */
 #endif

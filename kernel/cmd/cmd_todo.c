@@ -2,6 +2,7 @@
 #include "kernel.h"
 #include "todo.h"
 #include "svc.h"
+#include "memory.h"
 
 void todo_board_show(void) {
     char text[TODO_TEXT_MAX + 1];
@@ -9,7 +10,7 @@ void todo_board_show(void) {
     int n = todo_count();
 
     vga_set_color(VGA_YELLOW, VGA_BLACK);
-    kprintf("================== LIST TUGAS ==================\n");
+    kprintf("=============== ACTIVITY LIST ===============\n");
     vga_set_color(VGA_LIGHT_GREY, VGA_BLACK);
 
     if (n == 0) {
@@ -31,10 +32,21 @@ void todo_board_show(void) {
     kprintf("  Aktif: %d   Selesai: %d\n", active, finished);
 }
 
+/* Alokator dipakai nyata oleh add/del: kmalloc saat vfs_write, kfree saat
+   vfs_delete. Baris ini memperlihatkan kondisi heap pada alur normal. */
+static void heap_note(const char* aksi) {
+    kprintf("  heap (%s): terpakai %u B, tersedia %u B\n", aksi,
+            (unsigned)memory_get_used(), (unsigned)memory_get_free());
+}
+
 static void report(int rc) {
     switch (rc) {
     case TODO_ERR_FULL:
-    case TODO_ERR_OOM:   kprintf("Penyimpanan penuh! Hapus beberapa tugas terlebih dahulu.\n"); break;
+    case TODO_ERR_OOM:
+        kprintf("Penyimpanan penuh! kmalloc gagal saat menyimpan tugas.\n");
+        heap_note("OOM");
+        kprintf("Hapus beberapa tugas terlebih dahulu.\n");
+        break;
     case TODO_ERR_NOID:  kprintf("Tugas dengan nomor itu tidak ditemukan.\n"); break;
     case TODO_ERR_EMPTY: kprintf("Teks tugas tidak boleh kosong.\n"); break;
     case TODO_ERR_NOMOD: kprintf("Modul penyimpanan tugas belum terpasang.\n"); break;
@@ -68,8 +80,10 @@ static void cmd_add(int argc, char** argv) {
     char text[CLI_BUF_SIZE];
     if (read_text(argc, argv, 1, text, (int)sizeof(text)) != 0) return;
     int rc = todo_add(text);
-    if (rc >= 0) { kprintf("Tugas #%d ditambahkan.\n", rc); }
-    else        report(rc);
+    if (rc >= 0) {
+        kprintf("Tugas #%d ditambahkan.\n", rc);
+        heap_note("add");
+    } else report(rc);
 }
 
 static void cmd_list(int argc, char** argv) { (void)argc; (void)argv; todo_board_show(); }
@@ -104,8 +118,10 @@ static void cmd_del(int argc, char** argv) {
     int id = (argc == 2) ? parse_id(argv[1]) : -1;
     if (id < 0) { kprintf("Penggunaan: del <no_tugas>\n"); return; }
     int rc = todo_del(id);
-    if (rc == TODO_OK) { kprintf("Tugas #%d dihapus.\n", id); }
-    else               report(rc);
+    if (rc == TODO_OK) {
+        kprintf("Tugas #%d dihapus.\n", id);
+        heap_note("del");
+    } else report(rc);
 }
 
 static void cmd_purge(int argc, char** argv) {

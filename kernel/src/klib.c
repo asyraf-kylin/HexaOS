@@ -83,8 +83,16 @@ void kdelay_ms(uint32_t ms) {
         for (uint32_t t = 0; t < 3000000u && !(inb(0x61) & 0x20); t++) { }
     }
 }
-/* ---------- kprintf ---------- */
-static void put_num(uint32_t v, unsigned base, int width, char pad, int neg, int upper) {
+/* ---------- kprintf ----------
+   kprintf(): tampil di layar (VGA) DAN serial.
+   kprintf_bg(): ditulis ke buffer internal, tidak ke VGA/serial -> benar-benar
+   "di belakang layar", dipakai untuk jejak privilege/protect. */
+typedef void (*putc_fn)(char);
+
+static void out_putc(putc_fn out, char c) { out(c); }
+static void out_puts(putc_fn out, const char* s) { while (*s) out(*s++); }
+
+static void put_num(putc_fn out, uint32_t v, unsigned base, int width, char pad, int neg, int upper) {
     char buf[34];
     int i = 0;
     const char* digits = upper ? "0123456789ABCDEF" : "0123456789abcdef";
@@ -93,18 +101,15 @@ static void put_num(uint32_t v, unsigned base, int width, char pad, int neg, int
     while (v) { buf[i++] = digits[v % base]; v /= base; }
 
     int len = i + (neg ? 1 : 0);
-    if (neg && pad == '0') { kputc('-'); neg = 0; }
-    for (; len < width; len++) kputc(pad);
-    if (neg) kputc('-');
-    while (i--) kputc(buf[i]);
+    if (neg && pad == '0') { out_putc(out, '-'); neg = 0; }
+    for (; len < width; len++) out_putc(out, pad);
+    if (neg) out_putc(out, '-');
+    while (i--) out_putc(out, buf[i]);
 }
 
-void kprintf(const char* fmt, ...) {
-    va_list ap;
-    va_start(ap, fmt);
-
+static void kvprintf(putc_fn out, const char* fmt, va_list ap) {
     for (; *fmt; fmt++) {
-        if (*fmt != '%') { kputc(*fmt); continue; }
+        if (*fmt != '%') { out_putc(out, *fmt); continue; }
         fmt++;
 
         char pad = ' ';
@@ -116,25 +121,52 @@ void kprintf(const char* fmt, ...) {
         case 'd':
         case 'i': {
             int32_t v = va_arg(ap, int32_t);
-            if (v < 0) put_num((uint32_t)(-(int64_t)v), 10, width, pad, 1, 0);
-            else       put_num((uint32_t)v, 10, width, pad, 0, 0);
+            if (v < 0) put_num(out, (uint32_t)(-(int64_t)v), 10, width, pad, 1, 0);
+            else       put_num(out, (uint32_t)v, 10, width, pad, 0, 0);
             break;
         }
-        case 'u': put_num(va_arg(ap, uint32_t), 10, width, pad, 0, 0); break;
-        case 'x': put_num(va_arg(ap, uint32_t), 16, width, pad, 0, 0); break;
-        case 'X': put_num(va_arg(ap, uint32_t), 16, width, pad, 0, 1); break;
-        case 'p': kputs("0x"); put_num((uint32_t)(uintptr_t)va_arg(ap, void*), 16, 8, '0', 0, 0); break;
-        case 'c': kputc((char)va_arg(ap, int)); break;
+        case 'u': put_num(out, va_arg(ap, uint32_t), 10, width, pad, 0, 0); break;
+        case 'x': put_num(out, va_arg(ap, uint32_t), 16, width, pad, 0, 0); break;
+        case 'X': put_num(out, va_arg(ap, uint32_t), 16, width, pad, 0, 1); break;
+        case 'p': out_puts(out, "0x"); put_num(out, (uint32_t)(uintptr_t)va_arg(ap, void*), 16, 8, '0', 0, 0); break;
+        case 'c': out_putc(out, (char)va_arg(ap, int)); break;
         case 's': {
             const char* s = va_arg(ap, const char*);
-            kputs(s ? s : "(null)");
+            out_puts(out, s ? s : "(null)");
             break;
         }
-        case '%': kputc('%'); break;
-        case '\0': va_end(ap); return;
-        default: kputc('%'); kputc(*fmt); break;
+        case '%': out_putc(out, '%'); break;
+        case '\0': return;
+        default: out_putc(out, '%'); out_putc(out, *fmt); break;
         }
     }
+}
+
+void kprintf(const char* fmt, ...) {
+    va_list ap;
+    va_start(ap, fmt);
+    kvprintf(kputc, fmt, ap);
+    va_end(ap);
+}
+
+/* Log internal: ditulis ke memori, TIDAK ke VGA maupun serial. Dipakai
+   untuk jejak privilege/protect yang tidak boleh mengganggu layar demo. */
+static char  bg_log[2048];
+static unsigned bg_log_len;
+
+static void bg_putc(char c) {
+    if (bg_log_len + 1 < sizeof(bg_log)) bg_log[bg_log_len++] = c;
+}
+
+const char* kget_bg_log(void) {
+    bg_log[bg_log_len] = '\0';
+    return bg_log;
+}
+
+void kprintf_bg(const char* fmt, ...) {
+    va_list ap;
+    va_start(ap, fmt);
+    kvprintf(bg_putc, fmt, ap);
     va_end(ap);
 }
 

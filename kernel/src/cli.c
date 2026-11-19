@@ -67,12 +67,13 @@ const cli_cmd_t* cli_get(int i) {
 }
 
 /* -------------------------------------------------------------
- * Task Monitor HUD (Pojok Kanan Bawah, khusus Root)
+ * Task Monitor HUD (Panel kanan penuh tinggi layar, khusus Root)
  * ------------------------------------------------------------- */
 #define HUD_W 36
-#define HUD_H 10
+#define HUD_H 25                          /* mentok atas & bawah, tanpa celah */
+#define HUD_TASK_ROWS (HUD_H - 5)         /* header + kolom + N baris + garis + heap + footer */
 #define HUD_X (80 - HUD_W)
-#define HUD_Y (25 - HUD_H)
+#define HUD_Y 0
 
 static int hud_active = 0;
 
@@ -136,8 +137,8 @@ static void hud_render(void) {
     line[HUD_W] = '\0';
     vga_write_overlay(HUD_X, HUD_Y + 1, line, val_attr);
 
-    // Baris 2..6: Daftar Task / Thread (5 baris)
-    for (int row = 0; row < 5; row++) {
+    // Baris 2..: Daftar Task / Thread (semua slot)
+    for (int row = 0; row < HUD_TASK_ROWS; row++) {
         for (int i = 0; i < HUD_W; i++) line[i] = ' ';
         line[HUD_W] = '\0';
 
@@ -181,12 +182,12 @@ static void hud_render(void) {
         }
     }
 
-    // Baris 7: Garis Pemisah
+    // Garis Pemisah
     for (int i = 0; i < HUD_W; i++) line[i] = '-';
     line[HUD_W] = '\0';
-    vga_write_overlay(HUD_X, HUD_Y + 7, line, border_attr);
+    vga_write_overlay(HUD_X, HUD_Y + 2 + HUD_TASK_ROWS, line, border_attr);
 
-    // Baris 8: Info Heap
+    // Info Heap
     for (int i = 0; i < HUD_W; i++) line[i] = ' ';
     const char* hlabel = " Heap: ";
     int pos = 0;
@@ -201,14 +202,14 @@ static void hud_render(void) {
     const char* end = "B free";
     int e = 0; while (end[e] && pos < HUD_W) line[pos++] = end[e++];
     line[HUD_W] = '\0';
-    vga_write_overlay(HUD_X, HUD_Y + 8, line, stat_attr);
+    vga_write_overlay(HUD_X, HUD_Y + 3 + HUD_TASK_ROWS, line, stat_attr);
 
-    // Baris 9: Footer / Petunjuk
+    // Footer / Petunjuk
     for (int i = 0; i < HUD_W; i++) line[i] = ' ';
     const char* foot = " [Tab]: Sembunyikan | Priv: ROOT ";
     for (int i = 0; foot[i] && i < HUD_W; i++) line[i] = foot[i];
     line[HUD_W] = '\0';
-    vga_write_overlay(HUD_X, HUD_Y + 9, line, val_attr);
+    vga_write_overlay(HUD_X, HUD_Y + 4 + HUD_TASK_ROWS, line, val_attr);
 }
 
 void cli_hud_toggle(void) {
@@ -402,9 +403,15 @@ static void cmd_login(int argc, char** argv) {
     kprintf("Password admin: ");
     cli_read_password(pw, 32);
     if (pw[0] == '\0') return;
-    if (protect_request_root(pw) == E_OK) {
+    if (protect_check_root_password(pw) == E_OK) {
+        /* Masih berstatus user: jalankan kode di CPL=3 untuk membuktikan
+           privilege hardware, lalu #GP mengembalikan ke CPL=0. Baru setelah
+           itu hak admin (label PRIV_KERNEL) diberikan. */
+        user_switch_ring3();
+        protect_grant_root();
         shell_root = 1;
-        kprintf("Login berhasil. Fitur admin aktif (ketik 'help').\n");
+        kprintf("Login berhasil. Anda telah menjadi root.\n");
+        kprintf("Fitur admin aktif, ketik 'help' untuk daftar perintah.\n");
     } else {
         kprintf("login: password salah.\n");
     }
@@ -419,8 +426,9 @@ static void cmd_logout(int argc, char** argv) {
         vga_redraw();
     }
     protect_drop_root();
+    user_switch_ring3();   /* transisi privilege nyata saat kembali ke user */
     shell_root = 0;
-    kprintf("Logout. Kembali ke mode kiosk.\n");
+    kprintf("Logout berhasil. Anda telah kembali ke mode kiosk.\n");
 }
 
 /* passwd sekarang root_only, jadi cek "if (!shell_root)" di dalamnya dihapus */

@@ -15,7 +15,7 @@ static int view = 0;                 /* 0 = layar live, n = tergulir n baris ke 
 static int cx = 0, cy = 0;
 static uint8_t color = (VGA_BLACK << 4) | VGA_LIGHT_GREY;
 #define OV_MAX_W 40
-#define OV_MAX_H 12
+#define OV_MAX_H 25
 static int ov_active = 0;
 static int ov_x = 0, ov_y = 0, ov_w = 0, ov_h = 0;
 static uint16_t ov_cells[OV_MAX_H][OV_MAX_W];

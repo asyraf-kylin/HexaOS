@@ -102,7 +102,7 @@ void task_tick(void) {
     /* HUD root di-update 20x/detik (50 ms), termasuk saat shell jalankan program. */
     if ((now % 5) == 0) cli_hud_refresh();   /* [DEMO-RR] HUD = bukti visual langsung */
 
-    /* [DEMO-RR] Titik preemption: 5 tick x 10 ms = 50 ms.
+    /* [DEMO-RR] Titik preemption: TASK_QUANTUM(5) tick x 10 ms = 50 ms.
        [UBAH] TASK_QUANTUM di task.h bila ingin giliran lebih cepat.
        Baris `current->cpu_ticks++` di atas mengisi kolom CPU(tick) sysinfo. */
     if (current == idle || ++slice >= TASK_QUANTUM) {   /* kuantum habis */

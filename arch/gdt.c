@@ -79,3 +79,12 @@ void gdt_init(void) {
 void gdt_set_kernel_stack(uint32_t esp0) {
     tss.esp0 = esp0;
 }
+
+/* Batasi segmen user ke wilayah tertentu. Tanpa ini descriptor 3/4 flat
+   (base 0, limit 4 GB) sehingga ring 3 bisa membaca seluruh memori kernel.
+   gran 0x40 = 32-bit, byte granularity -> limit = size-1 tepat dalam byte. */
+void gdt_set_user_region(uint32_t base, uint32_t size) {
+    if (size == 0) return;
+    gdt_set_gate(3, base, size - 1, 0xFA, 0x40);   /* user code, ring 3 */
+    gdt_set_gate(4, base, size - 1, 0xF2, 0x40);   /* user data, ring 3 */
+}

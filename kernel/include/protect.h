@@ -35,7 +35,9 @@ int32_t protect_syscall(uint32_t num, uint32_t a1, uint32_t a2);
 bool    protect_require_kernel(const char *op);
 
 /* Mode root: naik ke PRIV_KERNEL dengan password (simulasi su/sudo) */
-int32_t protect_request_root(const char *password);   /* E_OK / E_PERM */
+int32_t protect_check_root_password(const char *password); /* hanya cek hash */
+void    protect_grant_root(void);                    /* naikkan tanpa cek ulang */
+int32_t protect_request_root(const char *password);   /* cek + naik (E_OK/E_PERM) */
 void    protect_drop_root(void);                      /* kembali PRIV_USER */
 /* Ganti password: hanya boleh saat thread sedang mode root */
 int32_t protect_change_password(const char *old_pw, const char *new_pw);

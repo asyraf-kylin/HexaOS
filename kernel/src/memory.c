@@ -8,13 +8,15 @@
 /* =====================================================================
  * PENANDA DEMO BAB III - PDF poin 6 (alokator)
  * ---------------------------------------------------------------------
- * Dua cara menampilkan OOM, JANGAN disamakan:
- *  1) `add` terus sampai > 64 tugas -> VFS penuh. Pesan "Penyimpanan penuh!"
- *     muncul dari MAX_FILES (vfs.h), heap masih tersisa. Ini batas file.
- *  2) `diag mem` -> test_mem() di bawah mengalokasi blok 1 KB sampai
- *     kmalloc() benar-benar mengembalikan NULL (heap OOM), lalu kfree semua.
- *     Screenshot: Free saat OOM ~0, lalu kembali ke angka awal.
- * [DEMO] `sysinfo` menampilkan Heap terpakai/tersedia dari fungsi di bawah.
+ * OOM heap ditunjukkan pada alur kiosk normal: `add` berulang mengisi heap
+ * 1 KB lewat vfs_write() -> kmalloc() mengembalikan NULL -> todo_add()
+ * mengembalikan TODO_ERR_OOM -> CLI mencetak "Penyimpanan penuh!". Batas
+ * MAX_FILES (64) belum tercapai karena heap habis lebih dulu. `sysinfo`
+ * menunjukkan used/free naik-turun, dan `del` membuktikan memori dilepas.
+ *
+ * Tidak ada fungsi uji terpisah: pembuktiannya menyatu pada pembuatan to-do
+ * (`add` memanggil kmalloc lewat vfs_write, `del` memanggil kfree). `sysinfo`
+ * dan baris heap di `add`/`del` menampilkan angka yang sama dari fungsi di bawah.
  * [JANGAN] mengubah urutan di vfs_write(): alokasi baru dulu, baru kfree lama.
  *          Kalau dibalik, OOM membuat isi file lama hilang.
  * [UBAH] HEAP_SIZE hanya kalau ingin batas OOM lebih cepat tercapai.
@@ -96,38 +98,4 @@ size_t memory_get_free(void) {
 
 size_t memory_get_used(void) {
     return HEAP_SIZE - memory_get_free();
-}
-
-/* ==========================================================
- * Pengujian Alokasi Memori / OOM (Anggota 4 - A4)
- * ========================================================== */
-/* [DEMO-POIN6] Dipanggil `diag mem`. Bisa dihapus bersama entri "mem" di
-   cmd_diag.c dan prototipe di svc.h kalau diag tidak dipakai. */
-void test_mem(void) {
-    kprintf("[MEM] Pengujian alokasi heap sampai OOM...\n");
-    kprintf("[MEM] Titik Awal: Heap stabil (Free: %u bytes).\n", (unsigned int)memory_get_free());
-    
-    void *blocks[1024];
-    int count = 0;
-    
-    // Alokasi blok 1 KB berulang kali sampai kmalloc mengembalikan NULL
-    while (count < 1024) {
-        void *ptr = kmalloc(1024);
-        if (!ptr) {
-            kprintf("[MEM] Titik OOM Tercapai: kmalloc mengembalikan NULL setelah %d blok.\n", count);
-            break;
-        }
-        blocks[count++] = ptr;
-    }
-    
-    kprintf("[MEM] Status saat OOM - Terpakai: %u bytes, Sisa: %u bytes.\n", 
-            (unsigned int)memory_get_used(), (unsigned int)memory_get_free());
-
-    kprintf("[MEM] Membebaskan kembali seluruh blok memori (kfree)...\n");
-    for (int i = 0; i < count; i++) {
-        kfree(blocks[i]);
-    }
-    
-    kprintf("[MEM] Titik Selesai: Semua memori berhasil dipulihkan ke keadaan awal (Free: %u bytes).\n", 
-            (unsigned int)memory_get_free());
 }

@@ -3,8 +3,10 @@
  * tests.c - Skenario pengujian Anggota 3 (bagian c dan d)
  *
  * demo-deadlock : Deadlock 2 thread + 2 mutex, kemudian solusinya
- * demo-protect  : User mode vs kernel mode
+ * test_protect  : kontrol akses perangkat lunak (user/kernel + password)
  * test_race     : Race condition tanpa mutex vs dengan mutex
+ * Transisi privilege hardware (ring 0 -> ring 3 -> #GP) ada di arch/usermode.*
+ * dan dipanggil dari cmd_login()/cmd_logout(), bukan lewat diag protect.
  *
  * Daftarkan tiga fungsi test_* di bawah ke tabel perintah shell.
  */

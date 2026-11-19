@@ -15,13 +15,13 @@ Rantainya nyata, bukan `printf` simulasi:
 PIT 1193182/100 = 11931  ->  IRQ0 tiap 10 ms        (drivers/timer.c)
 timer_irq()              ->  ticks++ ; callback()   (drivers/timer.c)
 callback = task_tick()   ->  cpu_ticks++ ; slice++  (kernel/src/task.c)
-slice >= TASK_QUANTUM(5) ->  schedule()             (kernel/src/task.c)
+slice >= TASK_QUANTUM(5) -> schedule()              (kernel/src/task.c)
 schedule()               ->  pick_next()            (kernel/src/task.c)
 switch_context()         ->  tukar ESP + register   (arch/switch.asm)
 iret di isr_common       ->  EIP thread baru jalan  (arch/isr.asm)
 ```
 
-Kuantum = 5 tick x 10 ms = **50 ms**. `pick_next()` mulai dari slot setelah
+Kuantum = 5 tick x 10 ms = **50 ms** (`TASK_QUANTUM` di `task.h`). `pick_next()` mulai dari slot setelah
 thread sekarang (`(start + i) % TASK_MAX`), jadi sifatnya melingkar.
 
 Kenapa layar seolah diam:
@@ -51,9 +51,9 @@ Kalau ingin lebih cepat terlihat: ubah `TASK_QUANTUM` di
 | 3. Round Robin | `diag preempt`, HUD/Tab, `sysinfo` | A/B bergantian; `CPU`/`GILIRAN` bertambah | keluaran A/B + angka giliran |
 | 4. Sinkronisasi | `diag race` | tanpa mutex `< 100000` (SALAH), dengan mutex `100000` (BENAR) | dua baris hasil |
 | 5. Deadlock | `diag deadlock` | skenario 1 terblokir + timeout; skenario 2 selesai dengan lock ordering | dua skenario |
-| 6. Memori | `add` > 64 kali, `diag mem` | "Penyimpanan penuh"; Free ≈ 0 saat OOM lalu balik lagi | keluaran `[MEM]` + `sysinfo` |
+| 6. Memori | `add` berulang dengan teks panjang, `sysinfo`, `del` | baris `heap (add)` naik sampai `kmalloc` gagal: "Penyimpanan penuh!"; `heap (del)` turun lagi setelah hapus | keluaran `add` OOM + `del` + `sysinfo` |
 | 7. VFS | `add`, `list`, `edit`, `done`, `del` | CRUD `todo_<id>.txt` di RAMDisk; counter benar | papan tugas |
-| 8. Proteksi | `del 1` sbg guest, `diag race`, `login`, `del 1`, `diag protect` | Akses Ditolak → prompt admin → berhasil; semua "SESUAI" | screenshot sebelum/sesudah login |
+| 8. Proteksi | `login`, `del 1` sbg guest, `login`, `del 1`, `logout` | layar: "Anda telah menjadi root." / "kembali ke mode kiosk"; guest `del 1` Akses Ditolak, admin berhasil. Internal: iret ke CPL=3 → `hlt` ditolak #GP hardware → balik CPL=0 | screenshot layar + kode `arch/usermode.*` |
 
 Urutan pakai dari task board:
 
@@ -69,8 +69,6 @@ admin  : edit 2 kerjakan laporan SO
          sysinfo
          diag race
          diag deadlock
-         diag mem
-         diag protect
          diag threads
          diag preempt
          purge
@@ -101,11 +99,87 @@ admin@hexa> diag preempt
 Dua thread loop tanpa yield, 1 huruf = 1 tick CPU (Ctrl+C = batal):
 AAAAABBBBBAAAAABBBBBAAAAABBBBB...
 giliran A=13, B=14 (ganti tiap 5 tick = 50 ms)
+
+kiosk@hexa> add beli susu
+Tugas #0 ditambahkan.
+  heap (add): terpakai 36 B, tersedia 988 B
+
+kiosk@hexa> login admin
+Password admin: root
+Login berhasil. Anda telah menjadi root.
+Fitur admin aktif, ketik 'help' untuk daftar perintah.
+
+admin@hexa> add <teks 120 karakter>   (diulang sampai heap penuh)
+Penyimpanan penuh! kmalloc gagal saat menyimpan tugas.
+  heap (OOM): terpakai 1016 B, tersedia 8 B
+Hapus beberapa tugas terlebih dahulu.
+
+admin@hexa> del 0
+Tugas #0 dihapus.
+  heap (del): terpakai 1004 B, tersedia 20 B
 ```
 
-Angka `50000`, `100000`, `giliran A=13, B=14` di atas bukan hasil hitung
-manual — itu keluaran kernel yang sudah diverifikasi dengan
+Angka `50000`, `100000`, `giliran A=13, B=14`, dan `heap (OOM)` di atas bukan
+hasil hitung manual — itu keluaran kernel yang sudah diverifikasi dengan
 `make clean && make` lalu dijalankan di QEMU.
+
+Detail teknis transisi ([user]/[protect]) sengaja tidak ditampilkan di layar
+maupun serial. Jejaknya disimpan di buffer internal `bg_log` (lihat
+`kprintf_bg()` / `kget_bg_log()` di `kernel/src/klib.c`), jadi layar demo
+benar-benar bersih:
+
+```
+[user] turun ke CPL=3 via iret (CS=0x1B, SS=0x23)
+[user] kode CPL=3 akses data user = 0xbadf00d (diizinkan), penanda = 1
+[user] HLT di CPL=3 ditolak #GP hardware, kembali ke CPL=0 (CS=0x08)
+[protect] thread 0 naik ke mode root (kernel)
+```
+
+Transisi privilege di `arch/usermode_entry.asm` + `arch/usermode.c` dipanggil
+langsung dari `cmd_login()`/`cmd_logout()`, bukan perintah demo. `iret` memuat
+`CS=0x1B` / `SS=0x23` (RPL=3), CPU benar-benar berjalan di CPL=3, lalu
+instruksi `hlt` ditolak CPU dengan `#GP(0)` dan handler IDT mengembalikan
+kontrol ke ring 0 sebelum hak admin diberikan/dicabut. Jangan menyebutnya
+"proteksi memori paging" — yang ada adalah proteksi privilege x86 (CPL) +
+kontrol akses guest/admin di `protect.c`.
+
+### Hubungan tiga lapis proteksi (bahan Bab II.8)
+
+| Lapisan | Data / gerbang | File |
+|---|---|---|
+| Hak perintah CLI | `shell_root`, flag `root_only` | `kernel/src/cli.c` (`cli_run`) |
+| Privilege software | `thread_priv[tid]`, `protect_check()`, `protect_syscall()` | `kernel/src/protect.c` |
+| Privilege hardware x86 | `CS=0x1B`, `SS=0x23`, `#GP(0)` | `arch/usermode_entry.asm`, `arch/usermode.c`, `arch/gdt.c`, IDT vektor 13 |
+
+Ketiganya **nyambung di satu alur** `cmd_login()` / `cmd_logout()`:
+
+```
+login admin -> protect_check_root_password()   (cek hash password)
+            -> user_switch_ring3()             (CPL 0 -> 3 -> #GP -> CPL 0)
+            -> protect_grant_root()            (thread_priv = PRIV_KERNEL)
+            -> shell_root = 1                  (perintah admin terbuka)
+
+logout     -> protect_drop_root()              (thread_priv = PRIV_USER)
+            -> user_switch_ring3()             (transisi privilege nyata)
+            -> shell_root = 0
+```
+
+Jadi jawabannya: `protect.c` mengelola **privilege thread, region memori, dan
+password**; `arch/usermode.*` membuktikan **pemisahan kernel/user di level CPU
+(CPL)**; `cli.c` memakai `shell_root` untuk **mengizinkan atau menolak
+perintah**. "User space" di sini bukan proses terpisah: hanya `user_region`
+8 KB dengan stack di offset `0x1800`, dan segmen ring 3 dibatasi oleh
+`gdt_set_user_region()`.
+
+Yang **belum** jadi satu sumber kebenaran: `cli_run()` masih membaca
+`shell_root`, bukan `protect_get_priv()`. Karena itu kedua flag harus selalu
+diubah berpasangan seperti urutan di atas. `protect_syscall()` saat ini
+dipakai `test_protect()` (sudah tidak terdaftar di `diag`), bukan oleh
+`add`/`del`/`edit` — perintah kiosk langsung memanggil `todo_*` di kernel.
+
+Alokator di `memory.c` tidak punya fungsi uji terpisah: `add` memanggil
+`kmalloc` lewat `vfs_write()`, `del` memanggil `kfree`, dan baris `heap`
+menampilkan `memory_get_used()/memory_get_free()` dari alur yang sama.
 
 ---
 
@@ -159,7 +233,7 @@ lalu `reboot` / restart QEMU. Jangan lakukan di depan dosen tanpa timeout.
 `boot/boot.asm`, `boot/linker.ld`, `arch/{isr,switch}.asm`, `drivers/timer.c`,
 `kernel/src/{task,tests,todo,svc,memory,vfs,protect,cli,main}.c`,
 `kernel/logo/*`, `kernel/cmd/cmd_todo.c`, `kernel/cmd/cmd_info.c`,
-`kernel/cmd/cmd_system.c`, `kernel/cmd/cmd_diag.c` (bukti poin 3–6 & 8).
+`kernel/cmd/cmd_system.c`, `kernel/cmd/cmd_diag.c` (bukti poin 3–5).
 
 **Sudah dibuang dari repo:**
 `kernel/cmd/cmd_vfs.c`, `stubs.c`, `semaphore.c/.h` (dulu sudah tidak ada),
@@ -170,8 +244,8 @@ lalu `reboot` / restart QEMU. Jangan lakukan di depan dosen tanpa timeout.
 `sync.h` tetap dipertahankan karena masih berisi prototipe `test_race`,
 `test_deadlock`, dan `test_protect` yang dipakai `tests.c`/`todo.c`.
 Mutex tidak perlu inisialisasi global: `mutex_init()` dipanggil per objek
-di `todo.c` dan `tests.c`. PDF mengizinkan kontrol akses sederhana, jadi
-penghapusan ring 3 tidak mengurangi pemenuhan poin 8.
+di `todo.c` dan `tests.c`. Transisi ring 3 tidak dihapus — sekarang dipanggil
+dari `login`/`logout` lewat `arch/usermode.*` (lihat Bab II.8 di atas).
 
 **Boleh diubah untuk eksperimen:**
 `kernel/include/task.h` (`TASK_QUANTUM`), `kernel/src/todo.c` (urutan lock /

@@ -6,7 +6,7 @@
 
 /* ---- Info OS ---- */
 #define OS_NAME     "HexaOS"
-#define OS_VERSION  "2.11FX"
+#define OS_VERSION  "3.0FX"
 #define OS_AUTHOR   "Ghithrif Asyraf - 11251008, Ahmad Nur Farizi - 11251048, Remarsya Fredericha - 11251078, Yusuf Maulana - 11251084"
 
 /* ---- Tipe dasar ---- */
@@ -51,6 +51,9 @@ typedef void (*isr_handler_t)(registers_t* r);
 
 void gdt_init(void);
 void gdt_set_kernel_stack(uint32_t esp0);   /* esp0 untuk TSS (user -> kernel) */
+void gdt_set_user_region(uint32_t base, uint32_t size); /* batasi segmen ring 3 */
+void goto_user_mode(void);                  /* iret ring 0 -> ring 3 (arch/usermode.asm) */
+void user_switch_ring3(void);               /* transisi privilege saat login/logout */
 void idt_init(void);                        /* IDT + remap PIC, semua IRQ masih mask */
 void isr_register(int int_no, isr_handler_t h);   /* pasang handler vektor 0-255 */
 void irq_register(int irq, isr_handler_t h);      /* pasang handler IRQ 0-15 + unmask */
@@ -110,6 +113,8 @@ char keyboard_getc(void);     /* menunggu sampai ada karakter */
 void kputc(char c);           /* ke VGA + serial */
 void kputs(const char* s);    /* tanpa newline otomatis */
 void kprintf(const char* fmt, ...);   /* %s %c %d %u %x %p %%, lebar & 0 */
+void kprintf_bg(const char* fmt, ...); /* log internal, tidak ke VGA/serial */
+const char* kget_bg_log(void);        /* jejak internal (bukan output demo) */
 char kgetc(void);             /* baca satu karakter (polling) */
 void kdelay_ms(uint32_t ms);  /* jeda (PIT kanal 2, tanpa interrupt) */
 

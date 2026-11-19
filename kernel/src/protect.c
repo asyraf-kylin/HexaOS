@@ -8,22 +8,16 @@
  *   - Semua akses user ke memori / layanan kernel divalidasi lewat
  *     protect_check() dan protect_syscall().
  *
- * Level 2 (hardware ring 3) SUDAH DIHAPUS. PDF mengizinkan kontrol hak
- * akses sederhana, jadi satu lapis proteksi software di atas sudah cukup.
- */
-
-/* =====================================================================
- * PENANDA DEMO BAB III - PDF poin 8 (proteksi & hak akses)
- * ---------------------------------------------------------------------
- * Satu lapis yang dipakai kiosk: kontrol akses software. Setiap thread
- * punya privilege (PRIV_USER/PRIV_KERNEL), tabel region, dan gerbang
- * protect_syscall(). Bukti utama ada di gerbang CLI: `cli_run()` (cli.c).
- * Blok `#ifdef HEXAOS_HW_RING3` sudah dibuang dari file ini.
+ * Level 2 (hardware x86 CPL): transisi ring 0 -> ring 3 -> #GP -> ring 0
+ *   terjadi di arch/usermode.* yang dipanggil cmd_login()/cmd_logout().
  *
- * [DEMO-POIN8] `diag protect` -> semua baris "SESUAI". Pasangan
- *   protect_test_begin()/protect_test_end() mengembalikan password dan
- *   privilege setelah uji. [JANGAN] pakai protect_init() di dalam uji.
- * [UBAH] DEFAULT_ROOT_PW "root" harus sama dengan udata.pw_awal di tests.c.
+ * Pesan diagnostik `[protect]` ditulis ke buffer internal (kprintf_bg), bukan
+ * ke layar maupun serial. Yang tampil hanya hasil untuk pengguna, misalnya
+ * "Anda telah menjadi root." Bukti akses ditolak tetap terlihat lewat
+ * "Akses Ditolak" di cli_run().
+ *
+ * [UBAH] DEFAULT_ROOT_PW "root" harus sama dengan password yang diketik
+ *        pengguna saat `login admin`.
  * ===================================================================== */
 
 #include "kernel.h"
@@ -149,7 +143,7 @@ bool protect_require_kernel(const char *op)
 {
     if (protect_get_priv(cur_id()) == PRIV_KERNEL) return true;
 
-    kprintf("[protect] DITOLAK: thread %d (user) mencoba operasi kernel '%s'\n",
+    kprintf_bg("[protect] DITOLAK: thread %d (user) mencoba operasi kernel '%s'\n",
             cur_id(), op);
     return false;
 }
@@ -163,17 +157,27 @@ static uint32_t hash_str(const char *s)
     return h;
 }
 
-int32_t protect_request_root(const char *password)
+int32_t protect_check_root_password(const char *password)
 {
-    int32_t tid = cur_id();
-
     if (hash_str(password) != root_pw_hash) {
-        kprintf("[protect] password root SALAH untuk thread %d\n", tid);
+        kprintf_bg("[protect] password root SALAH untuk thread %d\n", cur_id());
         return E_PERM;
     }
+    return E_OK;
+}
 
+void protect_grant_root(void)
+{
+    int32_t tid = cur_id();
     protect_set_priv(tid, PRIV_KERNEL);
-    kprintf("[protect] thread %d naik ke mode root (kernel)\n", tid);
+    kprintf_bg("[protect] thread %d naik ke mode root (kernel)\n", tid);
+}
+
+int32_t protect_request_root(const char *password)
+{
+    int32_t rc = protect_check_root_password(password);
+    if (rc != E_OK) return rc;
+    protect_grant_root();
     return E_OK;
 }
 
@@ -181,7 +185,7 @@ void protect_drop_root(void)
 {
     int32_t tid = cur_id();
     protect_set_priv(tid, PRIV_USER);
-    kprintf("[protect] thread %d kembali ke mode user\n", tid);
+    kprintf_bg("[protect] thread %d kembali ke mode user\n", tid);
 }
 
 int32_t protect_change_password(const char *old_pw, const char *new_pw)
@@ -189,14 +193,14 @@ int32_t protect_change_password(const char *old_pw, const char *new_pw)
     if (!protect_require_kernel("ganti password")) return E_PERM;
 
     if (hash_str(old_pw) != root_pw_hash) {
-        kprintf("[protect] ganti password ditolak: password lama salah\n");
+        kprintf_bg("[protect] ganti password ditolak: password lama salah\n");
         return E_PERM;
     }
 
     if (new_pw[0] == '\0') return E_FAULT;
 
     root_pw_hash = hash_str(new_pw);
-    kprintf("[protect] password root berhasil diganti\n");
+    kprintf_bg("[protect] password root berhasil diganti\n");
     return E_OK;
 }
 
@@ -224,7 +228,7 @@ int32_t protect_syscall(uint32_t num, uint32_t a1, uint32_t a2)
 
     case SYS_WRITE: {
         if (!protect_check(priv, a1, a2, PERM_R)) {
-            kprintf("[protect] SYS_WRITE ditolak: buffer 0x%x (%u byte) tidak valid\n",
+            kprintf_bg("[protect] SYS_WRITE ditolak: buffer 0x%x (%u byte) tidak valid\n",
                     a1, a2);
             return E_FAULT;
         }
@@ -235,13 +239,13 @@ int32_t protect_syscall(uint32_t num, uint32_t a1, uint32_t a2)
     }
 
     case SYS_EXIT:
-        kprintf("[protect] thread %d keluar (kode %d)\n", tid, (int32_t)a1);
+        kprintf_bg("[protect] thread %d keluar (kode %d)\n", tid, (int32_t)a1);
         return E_OK;
 
     case SYS_REBOOT:
         if (!protect_require_kernel("reboot")) return E_PERM;
 
-        kprintf("[protect] reboot diizinkan untuk thread kernel %d\n", tid);
+        kprintf_bg("[protect] reboot diizinkan untuk thread kernel %d\n", tid);
         return E_OK;
 
     case SYS_SU: {
