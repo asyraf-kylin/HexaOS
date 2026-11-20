@@ -386,9 +386,13 @@ int todo_at(int index, int *id_out, int *done_out, char *text_out, int max) {
 
     int is_done = (parsed_id >= 0 && parsed_id < TODO_MAX_STATUS_ID && todo_done_flags[parsed_id]) ? 1 : 0;
 
-    /* Salin teks murni dan batasi sesuai panjang buffer */
+    /* Isi file tidak diakhiri '\0' (1 karakter = 1 byte di heap tracker),
+       jadi batasi salinan dengan panjang resmi dari VFS. */
+    int n = (int)vfs_size(found_fname);
+    if (n < 0) n = 0;
+    if (n > max - 1) n = max - 1;
     int dst_idx = 0;
-    while (content[dst_idx] && dst_idx < max - 1) {
+    while (dst_idx < n) {
         text_out[dst_idx] = content[dst_idx];
         dst_idx++;
     }

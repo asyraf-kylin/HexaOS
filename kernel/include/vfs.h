@@ -19,6 +19,7 @@ int vfs_create(const char *name);
 int vfs_write(const char *name, const char *data);
 int vfs_set_status(const char *name, char status); /* ubah [ ] <-> [x] tanpa kmalloc */
 char *vfs_read(const char *name);
+size_t vfs_size(const char *name); /* panjang isi file; 0 = tidak ada */
 int vfs_delete(const char *name);
 void vfs_list(void);
 int  vfs_name_at(int index, char *out, size_t max); /* iterasi file terpakai */

@@ -102,6 +102,16 @@ char *vfs_read(const char *name) {
     return NULL;
 }
 
+/* Isi file sengaja TIDAK diakhiri '\0' agar 1 karakter = 1 byte di tracker.
+   Pemanggil wajib memakai vfs_size() untuk membatasi bacaan. */
+size_t vfs_size(const char *name) {
+    for (int i = 0; i < MAX_FILES; i++) {
+        if (file_table[i].is_used && str_cmp(file_table[i].name, name) == 0)
+            return file_table[i].size;
+    }
+    return 0;
+}
+
 int vfs_delete(const char *name) {
     for (int i = 0; i < MAX_FILES; i++) {
         if (file_table[i].is_used && str_cmp(file_table[i].name, name) == 0) {
@@ -123,16 +133,20 @@ void vfs_list(void) {
     int count = 0;
     for (int i = 0; i < MAX_FILES; i++) {
         if (file_table[i].is_used) {
+            /* Heap baru menghitung 1 karakter = 1 byte, jadi angkanya sama
+               persis dengan 'terpakai' di sysinfo. */
             kprintf(" - %s [Size: %u bytes, heap: %u B]\n",
-                    file_table[i].name, (unsigned int)file_table[i].size,
-                    (unsigned int)memory_block_cost(file_table[i].size));
+                    file_table[i].name, (unsigned)file_table[i].size,
+                    (unsigned)file_table[i].size);
             count++;
         }
     }
     if (count == 0) {
         kprintf(" (tidak ada berkas)\n");
     } else {
-        kprintf(" (heap = header blok + payload align-4; belum termasuk header blok bebas)\n");
+        kprintf(" (heap = 1 karakter = 1 byte, sama dengan 'terpakai' di sysinfo)\n");
+        kprintf(" Total: %d berkas, %u B / %u B kapasitas heap\n",
+                count, (unsigned)memory_get_used(), (unsigned)memory_get_capacity());
     }
 }
 

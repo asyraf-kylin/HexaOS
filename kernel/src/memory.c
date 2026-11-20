@@ -22,9 +22,10 @@
 #endif
 
 typedef struct block_meta {
-    size_t size;
+    size_t size;        /* payload yang dialokasikan (sudah align-4) */
     struct block_meta *next;
-    int free;
+    int    free;
+    size_t requested;   /* byte yang benar-benar diminta kmalloc() */
 } block_meta_t;
 
 #define META_SIZE sizeof(block_meta_t)
@@ -65,6 +66,7 @@ void *kmalloc(size_t size) {
                 current->next = new_block;
             }
             current->free = 0;
+            current->requested = size;   /* dicatat agar kfree mengurangi angka yang sama */
             tracked_payload_used += size;
             return (void *)((uint8_t *)current + META_SIZE);
         }
@@ -79,8 +81,8 @@ void kfree(void *ptr) {
     block_meta_t *block = (block_meta_t *)((uint8_t *)ptr - META_SIZE);
     block->free = 1;
 
-    if (tracked_payload_used >= block->size) {
-        tracked_payload_used -= block->size;
+    if (tracked_payload_used >= block->requested) {
+        tracked_payload_used -= block->requested;
     } else {
         tracked_payload_used = 0;
     }
@@ -107,11 +109,6 @@ size_t memory_get_used(void) {
 
 size_t memory_get_capacity(void) {
     return heap_capacity;
-}
-
-size_t memory_block_cost(size_t data_len) {
-    size_t aligned = (data_len + 3u) & ~(size_t)3u;
-    return META_SIZE + aligned;
 }
 
 int memory_set_capacity(size_t new_capacity) {

@@ -15,7 +15,6 @@ void kfree(void *ptr);
 size_t memory_get_free(void);
 size_t memory_get_used(void);
 size_t memory_get_capacity(void);
-size_t memory_block_cost(size_t data_len); /* META_SIZE + payload align-4 */
 int  memory_set_capacity(size_t new_capacity); /* 0 = sukses, -1 = ditolak */
 
 #endif

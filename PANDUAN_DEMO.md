@@ -58,7 +58,7 @@ rebuild** — `sysinfo` menampilkan kuantum yang sedang aktif.
 | 4. Sinkronisasi | `diag race` | tanpa mutex `< 100000` (SALAH), dengan mutex `100000` (BENAR) | dua baris hasil |
 | 5. Deadlock | `diag deadlock` | skenario 1 terblokir + timeout; skenario 2 selesai dengan lock ordering | dua skenario |
 | 6. Memori | `add` berulang dengan teks panjang, `sysinfo`, `del` | baris `heap (add)` naik sampai `kmalloc` gagal: "Penyimpanan penuh!"; `heap (del)` turun lagi setelah hapus | keluaran `add` OOM + `del` + `sysinfo` |
-| 7. VFS | `add`, `list`, `edit`, `done`, `del` | CRUD `todo_<id>.txt` di RAMDisk; counter benar | papan tugas |
+| 7. VFS | `add`, `list`, `edit`, `done`, `del`, `vfsdump` | CRUD `todo_<id>.txt` di RAMDisk; kolom `Size` = `heap`, total cocok dengan `sysinfo` | papan tugas + tabel `vfsdump` |
 | 8. Proteksi | `login`, `del 1` sbg guest, `login`, `del 1`, `logout` | layar: "Anda telah menjadi root." / "kembali ke mode kiosk"; guest `del 1` Akses Ditolak, admin berhasil. Internal: iret ke CPL=3 → `hlt` ditolak #GP hardware → balik CPL=0 | screenshot layar + kode `arch/usermode.*` |
 
 Urutan pakai dari task board:
@@ -108,7 +108,7 @@ switch A=13, B=14 (ganti tiap 5 tick = 50 ms)
 
 kiosk@hexa> add beli susu
 Tugas #0 ditambahkan.
-  heap (add): terpakai 36 B, tersedia 988 B
+  heap (add): terpakai 9 B, tersedia 1015 B
 
 kiosk@hexa> login admin
 Password admin: root
@@ -118,17 +118,23 @@ Tekan Tab (atau `hud`) untuk menampilkan Task Monitor HUD.
 
 admin@hexa> add <teks 120 karakter>   (diulang sampai heap penuh)
 Penyimpanan penuh! kmalloc gagal saat menyimpan tugas.
-  heap (OOM): terpakai 1016 B, tersedia 8 B
+  heap (OOM): terpakai 849 B, tersedia 175 B
 Hapus beberapa tugas terlebih dahulu.
 
 admin@hexa> del 0
 Tugas #0 dihapus.
-  heap (del): terpakai 1004 B, tersedia 20 B
+  heap (del): terpakai 840 B, tersedia 184 B
 ```
 
 Angka `50000`, `100000`, `switch A=13, B=14`, dan `heap (OOM)` di atas bukan
 hasil hitung manual — itu keluaran kernel yang sudah diverifikasi dengan
 `make clean && make` lalu dijalankan di QEMU.
+
+Angka heap sekarang memakai aturan **1 karakter = 1 byte**: `add loco` (4
+karakter) menambah 4 B, dan `vfsdump` menampilkan angka yang sama persis dengan
+`terpakai` di `sysinfo`. OOM tetap terjadi sebelum `terpakai` mencapai 1024 B
+karena header tiap blok allocator tidak ikut dihitung tracker (dalam contoh
+di atas, 175 B "tersedia" sudah tidak cukup untuk blok 120 B).
 
 Detail teknis transisi ([user]/[protect]) sengaja tidak ditampilkan di layar
 maupun serial. Jejaknya disimpan di buffer internal `bg_log` (lihat
