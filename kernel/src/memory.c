@@ -3,23 +3,23 @@
 #include "memory.h"
 #include "kernel.h"
 
-/* =====================================================================
- * PENANDA DEMO BAB III - PDF poin 6 (alokator)
- * ---------------------------------------------------------------------
- * Default kapasitas heap = HEAP_DEFAULT (1 KB), supaya alur kiosk normal
- * cepat menunjukkan OOM: `add` berulang -> vfs_write() -> kmalloc() NULL
- * -> TODO_ERR_OOM -> CLI "Penyimpanan penuh!". Batas MAX_FILES (64) belum
- * tercapai karena heap habis lebih dulu.
- *
- * Setelah `login admin`, kapasitas bisa diubah dengan `setheap <byte>`
- * (HEAP_MIN .. HEAP_MAX = 1 MB). Buffer statis disiapkan sebesar HEAP_MAX;
- * yang dipakai alokator cuma `heap_capacity` byte pertama. Menambah kapasitas
- * menambah blok bebas di ujung; mengecilkan hanya boleh kalau blok di ujung
- * memang kosong, jadi tidak ada alokasi yang terpotong.
- *
- * [JANGAN] mengubah urutan di vfs_write(): alokasi baru dulu, baru kfree lama.
- *          Kalau dibalik, OOM membuat isi file lama hilang.
- * ===================================================================== */
+#include <stdint.h>
+#include <stddef.h>
+#include "../include/memory.h"
+#include "memory.h"
+#include "kernel.h"
+
+#ifndef HEAP_DEFAULT
+#define HEAP_DEFAULT 1024u
+#endif
+
+#ifndef HEAP_MIN
+#define HEAP_MIN     256u
+#endif
+
+#ifndef HEAP_MAX
+#define HEAP_MAX     (1024u * 1024u)
+#endif
 
 typedef struct block_meta {
     size_t size;
@@ -29,10 +29,12 @@ typedef struct block_meta {
 
 #define META_SIZE sizeof(block_meta_t)
 
-/* Buffer penuh disiapkan sekali; kapasitas aktif bisa diubah admin. */
 static uint8_t heap_memory[HEAP_MAX] __attribute__((aligned(4)));
 static block_meta_t *heap_start = NULL;
 static size_t heap_capacity = HEAP_DEFAULT;
+
+/* Pelacak byte payload yang diminta (1 char = 1 byte) */
+static size_t tracked_payload_used = 0;
 
 void memory_init(void) {
     heap_capacity = HEAP_DEFAULT;
@@ -40,6 +42,7 @@ void memory_init(void) {
     heap_start->size = heap_capacity - META_SIZE;
     heap_start->next = NULL;
     heap_start->free = 1;
+    tracked_payload_used = 0;
     kprintf("[ OK ] Memory manager initialized (%u B default, maks %u B)\n",
             (unsigned)HEAP_DEFAULT, (unsigned)HEAP_MAX);
 }
@@ -47,28 +50,27 @@ void memory_init(void) {
 void *kmalloc(size_t size) {
     if (size == 0) return NULL;
 
-    // Alignment 4-byte
-    size = (size + 3) & ~3;
+    size_t alloc_size = (size + 3) & ~3;
 
     block_meta_t *current = heap_start;
     while (current) {
-        if (current->free && current->size >= size) {
-            // Split block jika tersisa ruang cukup
-            if (current->size >= size + META_SIZE + 4) {
-                block_meta_t *new_block = (block_meta_t *)((uint8_t *)current + META_SIZE + size);
-                new_block->size = current->size - size - META_SIZE;
+        if (current->free && current->size >= alloc_size) {
+            if (current->size >= alloc_size + META_SIZE + 4) {
+                block_meta_t *new_block = (block_meta_t *)((uint8_t *)current + META_SIZE + alloc_size);
+                new_block->size = current->size - alloc_size - META_SIZE;
                 new_block->free = 1;
                 new_block->next = current->next;
 
-                current->size = size;
+                current->size = alloc_size;
                 current->next = new_block;
             }
             current->free = 0;
+            tracked_payload_used += size;
             return (void *)((uint8_t *)current + META_SIZE);
         }
         current = current->next;
     }
-    return NULL; // Out of memory
+    return NULL;
 }
 
 void kfree(void *ptr) {
@@ -77,7 +79,12 @@ void kfree(void *ptr) {
     block_meta_t *block = (block_meta_t *)((uint8_t *)ptr - META_SIZE);
     block->free = 1;
 
-    // Coalesce (gabungkan blok kosong yang berurutan)
+    if (tracked_payload_used >= block->size) {
+        tracked_payload_used -= block->size;
+    } else {
+        tracked_payload_used = 0;
+    }
+
     block_meta_t *current = heap_start;
     while (current && current->next) {
         if (current->free && current->next->free) {
@@ -90,36 +97,26 @@ void kfree(void *ptr) {
 }
 
 size_t memory_get_free(void) {
-    size_t free_mem = 0;
-    block_meta_t *curr = heap_start;
-    while (curr) {
-        if (curr->free) free_mem += curr->size;
-        curr = curr->next;
-    }
-    return free_mem;
+    if (tracked_payload_used >= heap_capacity) return 0;
+    return heap_capacity - tracked_payload_used;
 }
 
 size_t memory_get_used(void) {
-    return heap_capacity - memory_get_free();
+    return tracked_payload_used;
 }
 
 size_t memory_get_capacity(void) {
     return heap_capacity;
 }
 
-/* Biaya satu blok hasil kmalloc(data_len): header + payload yang di-align.
-   Dipakai vfsdump supaya jelas bedanya "ukuran file" vs "biaya heap". */
 size_t memory_block_cost(size_t data_len) {
     size_t aligned = (data_len + 3u) & ~(size_t)3u;
     return META_SIZE + aligned;
 }
 
-/* Ubah kapasitas aktif heap. Aman untuk blok yang sudah dialokasikan:
- *  - membesar: perluas blok bebas terakhir, atau tambah blok bebas baru;
- *  - mengecil: tolak kalau ada blok terpakai yang akan terpotong. */
 int memory_set_capacity(size_t new_capacity) {
     if (new_capacity < HEAP_MIN || new_capacity > HEAP_MAX) return -1;
-    new_capacity = (new_capacity + 3u) & ~(size_t)3u; // alignment 4-byte
+    new_capacity = (new_capacity + 3u) & ~(size_t)3u;
     if (new_capacity == heap_capacity) return 0;
 
     if (new_capacity > heap_capacity) {
@@ -129,7 +126,7 @@ int memory_set_capacity(size_t new_capacity) {
 
         size_t delta = new_capacity - heap_capacity;
         if (last->free) {
-            last->size += delta;          // seluruh delta bisa dipakai
+            last->size += delta;
         } else {
             if (delta < META_SIZE + 4u) return -1;
             block_meta_t *added = (block_meta_t *)((uint8_t *)heap_memory + heap_capacity);
@@ -142,7 +139,6 @@ int memory_set_capacity(size_t new_capacity) {
         return 0;
     }
 
-    /* Kecilkan: pastikan tidak ada blok terpakai di atas batas baru. */
     for (block_meta_t *b = heap_start; b; b = b->next) {
         if (b->free) continue;
         size_t start = (size_t)((uint8_t *)b - heap_memory);
@@ -158,16 +154,16 @@ int memory_set_capacity(size_t new_capacity) {
         int drop = 0;
 
         if (cur->free && start >= new_capacity) {
-            drop = 1;                      // blok bebas seluruhnya di luar batas
+            drop = 1;
         } else if (cur->free && end > new_capacity) {
             size_t room = new_capacity - start;
             if (room <= META_SIZE) {
                 drop = 1;
             } else {
-                cur->size = room - META_SIZE; // pangkas ekor blok bebas
+                cur->size = room - META_SIZE;
             }
         } else if (start >= new_capacity) {
-            return -1;                     // blok terpakai di luar batas
+            return -1;
         }
 
         if (drop) {

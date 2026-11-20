@@ -6,25 +6,6 @@
 
 static vfs_node_t file_table[MAX_FILES];
 
-/* =====================================================================
- * PENANDA DEMO BAB III - PDF poin 7 (VFS / RAMDisk)
- * ---------------------------------------------------------------------
- * Pemetaan CRUD yang harus disebut di laporan:
- *   add          -> vfs_create("todo_<id>.txt") + vfs_write("[ ] teks")
- *   list         -> vfs_name_at() + vfs_read() lewat todo_at()
- *   edit         -> vfs_write() (seluruh isi ditulis ulang, OOM-safe)
- *   done/undone  -> vfs_set_status() (toggle '[ ]' <-> '[x]' di buffer)
- *   del / purge  -> vfs_delete() + kfree() isi file
- * Batas: 64 file (MAX_FILES di vfs.h), nama maks. 32 karakter.
- *
- * [DEMO-POIN7] vfs_write() sudah AMAN OOM: kmalloc() blok BARU dulu,
- *   salin, baru kfree() yang lama. [JANGAN] kembalikan ke urutan lama.
- * [DEMO] vfs_name_at() dipakai todo_recount()/todo_at()/todo_purge_done().
- *   [JANGAN] dihapus: iterasi file tidak bisa hanya memakai index slot,
- *   karena slot kosong dipakai ulang setelah del.
- * [SUDAH-DIHAPUS] Prototipe usang vfs_run_test() sudah dibuang dari vfs.h.
- * ===================================================================== */
-
 static int str_len(const char *s) {
     int i = 0;
     while (s[i]) i++;
@@ -57,10 +38,10 @@ void vfs_init(void) {
 
 int vfs_create(const char *name) {
     if (!name || name[0] == '\0' || str_len(name) >= MAX_FILENAME)
-        return -1; // nama kosong / terlalu panjang
+        return -1;
     for (int i = 0; i < MAX_FILES; i++) {
         if (file_table[i].is_used && str_cmp(file_table[i].name, name) == 0) {
-            return -1; // File sudah ada
+            return -1;
         }
     }
     for (int i = 0; i < MAX_FILES; i++) {
@@ -69,29 +50,29 @@ int vfs_create(const char *name) {
             file_table[i].content = NULL;
             file_table[i].size = 0;
             file_table[i].is_used = 1;
-            return 0; // Sukses
+            return 0;
         }
     }
-    return -2; // Disk penuh
+    return -2;
 }
 
-/* Perbarui vfs_write di vfs.c agar aman dari OOM */
+/* Alokasi tepat sejumlah len byte (1 char = 1 byte di heap tracker) */
 int vfs_write(const char *name, const char *data) {
     for (int i = 0; i < MAX_FILES; i++) {
         if (file_table[i].is_used && str_cmp(file_table[i].name, name) == 0) {
             size_t len = str_len(data);
 
-            // Alokasi blok memori baru terlebih dahulu (aman dari OOM)
-            char *new_content = (char *)kmalloc(len + 1);
-            if (!new_content) return -3; // Out of memory
+            char *new_content = (char *)kmalloc(len);
+            if (!new_content && len > 0) return -3;
 
-            // Bebaskan konten lama jika ada
             if (file_table[i].content) {
                 kfree(file_table[i].content);
             }
 
-            file_table[i].content = new_content; // <-- Gunakan ini, bukan file_content
-            str_copy(file_table[i].content, data, len + 1);
+            file_table[i].content = new_content;
+            for (size_t k = 0; k < len; k++) {
+                file_table[i].content[k] = data[k];
+            }
             file_table[i].size = len;
             return 0;
         }
@@ -99,16 +80,12 @@ int vfs_write(const char *name, const char *data) {
     return -1;
 }
 
-/* [DEMO-POIN7] Toggle status [ ] <-> [x] LANGSUNG di buffer file.
-   Tidak memakai kmalloc/kfree, jadi tetap berhasil walaupun heap penuh
-   (important saat HEAP_DEFAULT diperkecil via setheap). Dipakai
-   todo_done/todo_undone dan todo_done_all/todo_undone_all. */
 int vfs_set_status(const char *name, char status) {
     for (int i = 0; i < MAX_FILES; i++) {
         if (file_table[i].is_used && str_cmp(file_table[i].name, name) == 0) {
             char *c = file_table[i].content;
             if (!c || file_table[i].size < 4 || c[0] != '[' || c[2] != ']' || c[3] != ' ')
-                return -1; // format bukan "[ ] ..."
+                return -1;
             c[1] = status;
             return 0;
         }
@@ -148,7 +125,7 @@ void vfs_list(void) {
         if (file_table[i].is_used) {
             kprintf(" - %s [Size: %u bytes, heap: %u B]\n",
                     file_table[i].name, (unsigned int)file_table[i].size,
-                    (unsigned int)memory_block_cost(file_table[i].size + 1));
+                    (unsigned int)memory_block_cost(file_table[i].size));
             count++;
         }
     }
@@ -159,17 +136,16 @@ void vfs_list(void) {
     }
 }
 
-/* Tambahkan fungsi ini di vfs.c */
 int vfs_name_at(int index, char *out, size_t max) {
     int found = 0;
     for (int i = 0; i < MAX_FILES; i++) {
         if (file_table[i].is_used) {
             if (found == index) {
                 str_copy(out, file_table[i].name, max);
-                return 0; // Berhasil
+                return 0;
             }
             found++;
         }
     }
-    return -1; // Tidak ditemukan pada indeks tersebut
+    return -1;
 }

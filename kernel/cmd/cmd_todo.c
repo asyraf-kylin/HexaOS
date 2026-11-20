@@ -32,19 +32,11 @@ void todo_board_show(void) {
     kprintf("  Aktif: %d   Selesai: %d\n", active, finished);
 }
 
-/* Alokator dipakai nyata oleh add/del: kmalloc saat vfs_write, kfree saat
-   vfs_delete. Baris ini memperlihatkan kondisi heap pada alur normal. */
-static void heap_note(const char* aksi) {
-    kprintf("  heap (%s): terpakai %u B, tersedia %u B\n", aksi,
-            (unsigned)memory_get_used(), (unsigned)memory_get_free());
-}
-
 static void report(int rc) {
     switch (rc) {
     case TODO_ERR_FULL:
     case TODO_ERR_OOM:
         kprintf("Penyimpanan penuh! kmalloc gagal saat menyimpan tugas.\n");
-        heap_note("OOM");
         kprintf("Hapus beberapa tugas terlebih dahulu.\n");
         break;
     case TODO_ERR_NOID:  kprintf("Tugas dengan nomor itu tidak ditemukan.\n"); break;
@@ -82,7 +74,6 @@ static void cmd_add(int argc, char** argv) {
     int rc = todo_add(text);
     if (rc >= 0) {
         kprintf("Tugas #%d ditambahkan.\n", rc);
-        heap_note("add");
     } else report(rc);
 }
 
@@ -128,7 +119,6 @@ static void cmd_del(int argc, char** argv) {
     if (argc == 2 && kstrcmp(argv[1], "all") == 0) {
         int n = todo_del_all();
         kprintf("%d tugas dihapus.\n", n);
-        heap_note("del all");
         return;
     }
     int id = (argc == 2) ? parse_id(argv[1]) : -1;
@@ -136,7 +126,6 @@ static void cmd_del(int argc, char** argv) {
     int rc = todo_del(id);
     if (rc == TODO_OK) {
         kprintf("Tugas #%d dihapus.\n", id);
-        heap_note("del");
     } else report(rc);
 }
 
